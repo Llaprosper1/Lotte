@@ -72,12 +72,12 @@ async function scheduleNotif(reminder) {
 }
 
 async function cancelNotif(notifId) {
-  if (notifId) { try { await Notifications.cancelScheduledNotificationAsync(notifId); } catch {} }
+  if (notifId) { try { await Notifications.cancelScheduledNotificationAsync(notifId); } catch(e) {} }
 }
 
 const KEYS = { cl:"lo_checklists", sh:"lo_shopping", master:"lo_master", rm:"lo_reminders", theme:"lo_theme" };
-async function loadData(k) { try { const v=await AsyncStorage.getItem(k); return v?JSON.parse(v):null; } catch { return null; } }
-async function saveData(k,v) { try { await AsyncStorage.setItem(k,JSON.stringify(v)); } catch {} }
+async function loadData(k) { try { const v=await AsyncStorage.getItem(k); return v?JSON.parse(v):null; } catch(e) { return null; } }
+async function saveData(k,v) { try { await AsyncStorage.setItem(k,JSON.stringify(v)); } catch(e) {} }
 
 const DE_MONTHS=["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"];
 const DE_DAYS_S=["Mo","Di","Mi","Do","Fr","Sa","So"];
@@ -866,6 +866,13 @@ function SettingsTab({C}) {
     </ScrollView>
   );
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// TAB: EINSTELLUNGEN & BACKUP
+// ═══════════════════════════════════════════════════════════════════════════════
+function SettingsTab({C}) {
+  const [status, setStatus] = useState(null);
+  const [loading, setLoading] = useState(false);
 
   const exportData = async () => {
     setLoading(true);
