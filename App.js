@@ -791,6 +791,9 @@ function ToDoTab({C}){
 // ═══════════════════════════════════════════════════════════════════════════════
 // TAB: EINSTELLUNGEN & BACKUP
 // ═══════════════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════════
+// TAB: EINSTELLUNGEN & BACKUP
+// ═══════════════════════════════════════════════════════════════════════════════
 function SettingsTab({C}) {
   const [status, setStatus] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -811,19 +814,16 @@ function SettingsTab({C}) {
       const json = JSON.stringify(result, null, 2);
       const date = new Date().toISOString().slice(0,10);
       const fileName = "lottes_backup_" + date + ".json";
-      // 1. In Cache schreiben
       const cachePath = FileSystem.cacheDirectory + fileName;
       await FileSystem.writeAsStringAsync(cachePath, json, {encoding: FileSystem.EncodingType.UTF8});
-      // 2. Ordner-Picker öffnen (genau wie beim Import der Datei-Browser öffnet)
       const perm = await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
-      if (!perm.granted) { setStatus({ok:false, msg:"❌ Kein Ordner gewählt."}); setLoading(false); return; }
-      // 3. Datei im gewählten Ordner erstellen
+      if (!perm.granted) { setStatus({ok:false, msg:"Kein Ordner gewählt."}); setLoading(false); return; }
       const destUri = await FileSystem.StorageAccessFramework.createFileAsync(perm.directoryUri, fileName, "application/json");
-      const fileContent = await FileSystem.readAsStringAsync(cachePath);
-      await FileSystem.writeAsStringAsync(destUri, fileContent, {encoding: FileSystem.EncodingType.UTF8});
-      setStatus({ok:true, msg:"✅ Backup gespeichert: " + fileName});
+      const fc = await FileSystem.readAsStringAsync(cachePath);
+      await FileSystem.writeAsStringAsync(destUri, fc, {encoding: FileSystem.EncodingType.UTF8});
+      setStatus({ok:true, msg:"Backup gespeichert: " + fileName});
     } catch(e) {
-      setStatus({ok:false, msg:"❌ Fehler: " + (e.message || String(e))});
+      setStatus({ok:false, msg:"Fehler: " + (e.message || String(e))});
     }
     setLoading(false);
   };
@@ -831,25 +831,18 @@ function SettingsTab({C}) {
   const importData = async () => {
     setStatus(null);
     try {
-      const result = await DocumentPicker.getDocumentAsync({
-        type: "application/json",
-        copyToCacheDirectory: true,
-      });
-      if (result.canceled) return;
-      const uri = result.assets[0].uri;
-      const json = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.UTF8 });
-      const data = JSON.parse(json);
+      const res = await DocumentPicker.getDocumentAsync({type:"application/json", copyToCacheDirectory:true});
+      if (res.canceled) return;
       setLoading(true);
+      const json = await FileSystem.readAsStringAsync(res.assets[0].uri);
+      const data = JSON.parse(json);
       let count = 0;
       for (const [k, v] of Object.entries(data)) {
-        if (k !== "_backup_date" && v !== null) {
-          await saveData(k, v);
-          count++;
-        }
+        if (k !== "_backup_date" && v !== null) { await saveData(k, v); count++; }
       }
-      setStatus({ok:true, msg:"✅ " + count + " Datensätze wiederhergestellt! Bitte App neu starten."});
+      setStatus({ok:true, msg:count + " Datensaetze wiederhergestellt. Bitte App neu starten."});
     } catch(e) {
-      setStatus({ok:false, msg:"❌ Fehler beim Einlesen: " + e.message});
+      setStatus({ok:false, msg:"Fehler: " + e.message});
     }
     setLoading(false);
   };
@@ -857,42 +850,22 @@ function SettingsTab({C}) {
   return (
     <ScrollView showsVerticalScrollIndicator={false}>
       <Text style={{color:C.text, fontSize:20, fontWeight:"800", marginBottom:20}}>Einstellungen</Text>
-
-      {status && (
-        <View style={{backgroundColor:status.ok?C.accent+"22":C.red+"22",
-          borderRadius:12, padding:14, marginBottom:16,
-          borderWidth:1.5, borderColor:status.ok?C.accent:C.red}}>
-          <Text style={{color:status.ok?C.accent:C.red, fontSize:13, fontWeight:"600"}}>{status.msg}</Text>
-        </View>
-      )}
-
-      {/* EXPORT */}
-      <View style={{backgroundColor:C.card, borderRadius:16, padding:16, marginBottom:14,
-        borderWidth:1.5, borderColor:C.border}}>
-        <Text style={{color:C.text, fontSize:16, fontWeight:"800", marginBottom:4}}>📤 Backup erstellen</Text>
-        <Text style={{color:C.text4, fontSize:12, marginBottom:12}}>
-          Erstellt eine JSON-Datei mit allen deinen Daten. Du kannst sie in Downloads speichern, per E-Mail senden oder auf Google Drive ablegen.
-        </Text>
-        <Btn C={C} label={loading?"Lädt…":"Backup als Datei speichern"} onPress={exportData} disabled={loading}
-          style={{alignSelf:"flex-start"}}/>
+      {status&&(<View style={{backgroundColor:status.ok?C.accent+"22":C.red+"22",borderRadius:12,padding:14,marginBottom:16,borderWidth:1.5,borderColor:status.ok?C.accent:C.red}}>
+        <Text style={{color:status.ok?C.accent:C.red,fontSize:13,fontWeight:"600"}}>{status.ok?"✅ ":"❌ "}{status.msg}</Text>
+      </View>)}
+      <View style={{backgroundColor:C.card,borderRadius:16,padding:16,marginBottom:14,borderWidth:1.5,borderColor:C.border}}>
+        <Text style={{color:C.text,fontSize:16,fontWeight:"800",marginBottom:4}}>Backup erstellen</Text>
+        <Text style={{color:C.text4,fontSize:12,marginBottom:12}}>Speichert alle Daten als JSON-Datei. Ordner-Auswahl oeffnet sich wie beim Import.</Text>
+        <Btn C={C} label={loading?"Laedt...":"Backup als Datei speichern"} onPress={exportData} disabled={loading} style={{alignSelf:"flex-start"}}/>
       </View>
-
-      {/* IMPORT */}
-      <View style={{backgroundColor:C.card, borderRadius:16, padding:16, marginBottom:14,
-        borderWidth:1.5, borderColor:C.border}}>
-        <Text style={{color:C.text, fontSize:16, fontWeight:"800", marginBottom:4}}>📥 Backup wiederherstellen</Text>
-        <Text style={{color:C.text4, fontSize:12, marginBottom:12}}>
-          Wähle eine zuvor gespeicherte Backup-Datei aus. Bestehende Daten werden überschrieben!
-        </Text>
-        <Btn C={C} variant="ghost" label={loading?"Lädt…":"Backup-Datei auswählen…"} onPress={importData} disabled={loading}
-          style={{alignSelf:"flex-start"}}/>
+      <View style={{backgroundColor:C.card,borderRadius:16,padding:16,marginBottom:14,borderWidth:1.5,borderColor:C.border}}>
+        <Text style={{color:C.text,fontSize:16,fontWeight:"800",marginBottom:4}}>Backup wiederherstellen</Text>
+        <Text style={{color:C.text4,fontSize:12,marginBottom:12}}>Backup-Datei auswaehlen. Bestehende Daten werden ueberschrieben.</Text>
+        <Btn C={C} variant="ghost" label={loading?"Laedt...":"Backup-Datei auswaehlen..."} onPress={importData} disabled={loading} style={{alignSelf:"flex-start"}}/>
       </View>
-
-      {/* INFO */}
-      <View style={{backgroundColor:C.card, borderRadius:16, padding:16,
-        borderWidth:1.5, borderColor:C.border, marginBottom:8}}>
-        <Text style={{color:C.text, fontSize:16, fontWeight:"800", marginBottom:10}}>ℹ️ App Info</Text>
-        {[["App","Lotte's Organizer"],["Version","1.0.0"],["Speicher","Lokal auf dem Gerät"]].map(([k,v])=>(
+      <View style={{backgroundColor:C.card,borderRadius:16,padding:16,borderWidth:1.5,borderColor:C.border,marginBottom:8}}>
+        <Text style={{color:C.text,fontSize:16,fontWeight:"800",marginBottom:10}}>App Info</Text>
+        {[["App","Lotte's Organizer"],["Version","1.0.0"],["Speicher","Lokal auf dem Geraet"]].map(([k,v])=>(
           <View key={k} style={{flexDirection:"row",justifyContent:"space-between",marginBottom:4}}>
             <Text style={{color:C.text4,fontSize:12}}>{k}</Text>
             <Text style={{color:C.text3,fontSize:12,fontWeight:"600"}}>{v}</Text>
@@ -902,39 +875,5 @@ function SettingsTab({C}) {
     </ScrollView>
   );
 }
-
-  const exportData = async () => {
-    setLoading(true);
-    setStatus(null);
-    try {
-      // Daten sammeln
-      const allKeys = [...Object.values(KEYS), "lo_todo", "lo_list_masters"];
-      const result = {};
-      for (const k of allKeys) {
-        const v = await loadData(k);
-        if (v !== null) result[k] = v;
-      }
-      result["_backup_date"] = new Date().toLocaleDateString("de-DE", {
-        day:"2-digit", month:"2-digit", year:"numeric", hour:"2-digit", minute:"2-digit"
-      });
-  const importData = async () => {
-    setStatus(null);
-    try {
-      const res = await DocumentPicker.getDocumentAsync({ type:"application/json", copyToCacheDirectory:true });
-      if (res.canceled) return;
-      setLoading(true);
-      const json = await FileSystem.readAsStringAsync(res.assets[0].uri);
-      const data = JSON.parse(json);
-      let count = 0;
-      for (const [k, v] of Object.entries(data)) {
-        if (k !== "_backup_date" && v !== null) { await saveData(k, v); count++; }
-      }
-      setStatus({ok:true, msg:"✅ "+count+" Datensätze wiederhergestellt! Bitte App neu starten."});
-    } catch(e) {
-      setStatus({ok:false, msg:"❌ Fehler: "+e.message});
-    }
-    setLoading(false);
-  };
-
 
 export default function App(){const[isDark,setIsDark]=useState(true);const[themeLoaded,setThemeLoaded]=useState(false);const[tab,setTab]=useState(0);const C=isDark?DARK:LIGHT;useEffect(()=>{loadData(KEYS.theme).then(d=>{if(d!==null)setIsDark(d);setThemeLoaded(true);});},[]);const toggleTheme=()=>{const next=!isDark;setIsDark(next);saveData(KEYS.theme,next);};if(!themeLoaded)return null;const tabs=[{label:"Kalender",emoji:"📅",comp:<RemindersTab C={C}/>},{label:"Checklisten",emoji:"📋",comp:<ChecklistTab C={C}/>},{label:"To-Do",emoji:"✅",comp:<ToDoTab C={C}/>},{label:"Einkauf",emoji:"🛒",comp:<ShoppingTab C={C}/>},{label:"Einstellg.",emoji:"⚙️",comp:<SettingsTab C={C}/>}];return(<SafeAreaView style={{flex:1,backgroundColor:C.bg}}><StatusBar barStyle={C.statusBar} backgroundColor={C.bg}/><View style={{paddingHorizontal:16,paddingTop:Platform.OS==="android"?22:8,paddingBottom:10,flexDirection:"row",alignItems:"center",gap:10,borderBottomWidth:1,borderBottomColor:C.border,backgroundColor:C.bg}}><Text style={{fontSize:28}}>🚐</Text><View style={{flex:1}}><Text style={{color:C.text,fontSize:20,fontWeight:"800",letterSpacing:0.2}}>Lotte's Organizer</Text><Text style={{color:C.text4,fontSize:11,fontWeight:"600"}}>Dein Camping-Begleiter</Text></View><View style={{flexDirection:"row",alignItems:"center",gap:6}}><Text style={{fontSize:16}}>{isDark?"🌙":"☀️"}</Text><Switch value={isDark} onValueChange={toggleTheme} trackColor={{false:"#e8d5c8",true:"#2d5a2d"}} thumbColor={isDark?DARK.accent:LIGHT.accent}/></View></View><View style={{flex:1,padding:16}}>{tabs[tab].comp}</View><View style={{flexDirection:"row",borderTopWidth:1,borderTopColor:C.border,backgroundColor:C.bg3,shadowColor:"#000",shadowOpacity:0.06,shadowRadius:8,shadowOffset:{width:0,height:-2},elevation:8}}>{tabs.map((t,i)=>(<TouchableOpacity key={i} onPress={()=>setTab(i)} activeOpacity={0.7} style={{flex:1,paddingTop:6,paddingBottom:4,alignItems:"center",gap:2}}><View style={{padding:5,borderRadius:10,backgroundColor:tab===i?C.accent+"22":"transparent"}}><Text style={{fontSize:20}}>{t.emoji}</Text></View><Text style={{fontSize:9,fontWeight:"700",color:tab===i?C.accent:C.text4}}>{t.label}</Text></TouchableOpacity>))}</View><View style={{height:NAV_BAR_H,backgroundColor:C.bg3}}/></SafeAreaView>);}
