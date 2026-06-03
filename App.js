@@ -871,7 +871,6 @@ function SettingsTab({C}) {
     setLoading(true);
     setStatus(null);
     try {
-      // Daten sammeln
       const allKeys = [...Object.values(KEYS), "lo_todo", "lo_list_masters"];
       const result = {};
       for (const k of allKeys) {
@@ -884,52 +883,112 @@ function SettingsTab({C}) {
       const json = JSON.stringify(result, null, 2);
       const date = new Date().toISOString().slice(0,10);
       const fileName = "lottes_backup_" + date + ".json";
-      // Zwischendatei im App-Cache erstellen
+      // 1. In Cache schreiben
       const cachePath = FileSystem.cacheDirectory + fileName;
-      await FileSystem.writeAsStringAsync(cachePath, json, { encoding: FileSystem.EncodingType.UTF8 });
-      // Ordner-Auswahl: gespeicherten URI nutzen oder einmalig wählen
-      let dirUri = await loadData("lo_backup_dir");
-      let needPicker = !dirUri;
-      if (!needPicker) {
-        try {
-          const info = await FileSystem.getInfoAsync(dirUri);
-          if (!info.exists) needPicker = true;
-        } catch { needPicker = true; }
-      }
-      if (needPicker) {
-        Alert.alert(
-          "Speicherort wählen",
-          "Bitte wähle den Downloads-Ordner als Speicherort.",
-          [{text:"OK", onPress: async () => {
-            const perm = await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
-            if (!perm.granted) { setLoading(false); setStatus({ok:false, msg:"❌ Kein Ordner gewählt."}); return; }
-            dirUri = perm.directoryUri;
-            await saveData("lo_backup_dir", dirUri);
-            await _saveToDir(dirUri, fileName, cachePath, json);
-          }}]
-        );
-      } else {
-        await _saveToDir(dirUri, fileName, cachePath, json);
-      }
-    } catch(e) {
-      setStatus({ok:false, msg:"❌ Fehler: " + (e.message || JSON.stringify(e))});
-      setLoading(false);
-    }
-  };
-
-  const _saveToDir = async (dirUri, fileName, cachePath, json) => {
-    try {
-      const uri = await FileSystem.StorageAccessFramework.createFileAsync(dirUri, fileName, "application/json");
-      await FileSystem.writeAsStringAsync(uri, json, { encoding: FileSystem.EncodingType.UTF8 });
+      await FileSystem.writeAsStringAsync(cachePath, json, {encoding: FileSystem.EncodingType.UTF8});
+      // 2. Ordner-Picker öffnen (genau wie beim Import der Datei-Browser öffnet)
+      const perm = await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
+      if (!perm.granted) { setStatus({ok:false, msg:"❌ Kein Ordner gewählt."}); setLoading(false); return; }
+      // 3. Datei im gewählten Ordner erstellen
+      const destUri = await FileSystem.StorageAccessFramework.createFileAsync(perm.directoryUri, fileName, "application/json");
+      const fileContent = await FileSystem.readAsStringAsync(cachePath);
+      await FileSystem.writeAsStringAsync(destUri, fileContent, {encoding: FileSystem.EncodingType.UTF8});
       setStatus({ok:true, msg:"✅ Backup gespeichert: " + fileName});
     } catch(e) {
-      // Ordner nicht mehr zugänglich — zurücksetzen
-      await saveData("lo_backup_dir", null);
-      setStatus({ok:false, msg:"❌ Ordner nicht zugänglich. Bitte erneut tippen um neuen Ordner zu wählen."});
+      setStatus({ok:false, msg:"❌ Fehler: " + (e.message || String(e))});
     }
     setLoading(false);
   };
 
+  const importData = async () => {
+    setStatus(null);
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: "application/json",
+        copyToCacheDirectory: true,
+      });
+      if (result.canceled) return;
+      const uri = result.assets[0].uri;
+      const json = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.UTF8 });
+      const data = JSON.parse(json);
+      setLoading(true);
+      let count = 0;
+      for (const [k, v] of Object.entries(data)) {
+        if (k !== "_backup_date" && v !== null) {
+          await saveData(k, v);
+          count++;
+        }
+      }
+      setStatus({ok:true, msg:"✅ " + count + " Datensätze wiederhergestellt! Bitte App neu starten."});
+    } catch(e) {
+      setStatus({ok:false, msg:"❌ Fehler beim Einlesen: " + e.message});
+    }
+    setLoading(false);
+  };
+
+  return (
+    <ScrollView showsVerticalScrollIndicator={false}>
+      <Text style={{color:C.text, fontSize:20, fontWeight:"800", marginBottom:20}}>Einstellungen</Text>
+
+      {status && (
+        <View style={{backgroundColor:status.ok?C.accent+"22":C.red+"22",
+          borderRadius:12, padding:14, marginBottom:16,
+          borderWidth:1.5, borderColor:status.ok?C.accent:C.red}}>
+          <Text style={{color:status.ok?C.accent:C.red, fontSize:13, fontWeight:"600"}}>{status.msg}</Text>
+        </View>
+      )}
+
+      {/* EXPORT */}
+      <View style={{backgroundColor:C.card, borderRadius:16, padding:16, marginBottom:14,
+        borderWidth:1.5, borderColor:C.border}}>
+        <Text style={{color:C.text, fontSize:16, fontWeight:"800", marginBottom:4}}>📤 Backup erstellen</Text>
+        <Text style={{color:C.text4, fontSize:12, marginBottom:12}}>
+          Erstellt eine JSON-Datei mit allen deinen Daten. Du kannst sie in Downloads speichern, per E-Mail senden oder auf Google Drive ablegen.
+        </Text>
+        <Btn C={C} label={loading?"Lädt…":"Backup als Datei speichern"} onPress={exportData} disabled={loading}
+          style={{alignSelf:"flex-start"}}/>
+      </View>
+
+      {/* IMPORT */}
+      <View style={{backgroundColor:C.card, borderRadius:16, padding:16, marginBottom:14,
+        borderWidth:1.5, borderColor:C.border}}>
+        <Text style={{color:C.text, fontSize:16, fontWeight:"800", marginBottom:4}}>📥 Backup wiederherstellen</Text>
+        <Text style={{color:C.text4, fontSize:12, marginBottom:12}}>
+          Wähle eine zuvor gespeicherte Backup-Datei aus. Bestehende Daten werden überschrieben!
+        </Text>
+        <Btn C={C} variant="ghost" label={loading?"Lädt…":"Backup-Datei auswählen…"} onPress={importData} disabled={loading}
+          style={{alignSelf:"flex-start"}}/>
+      </View>
+
+      {/* INFO */}
+      <View style={{backgroundColor:C.card, borderRadius:16, padding:16,
+        borderWidth:1.5, borderColor:C.border, marginBottom:8}}>
+        <Text style={{color:C.text, fontSize:16, fontWeight:"800", marginBottom:10}}>ℹ️ App Info</Text>
+        {[["App","Lotte's Organizer"],["Version","1.0.0"],["Speicher","Lokal auf dem Gerät"]].map(([k,v])=>(
+          <View key={k} style={{flexDirection:"row",justifyContent:"space-between",marginBottom:4}}>
+            <Text style={{color:C.text4,fontSize:12}}>{k}</Text>
+            <Text style={{color:C.text3,fontSize:12,fontWeight:"600"}}>{v}</Text>
+          </View>
+        ))}
+      </View>
+    </ScrollView>
+  );
+}
+
+  const exportData = async () => {
+    setLoading(true);
+    setStatus(null);
+    try {
+      // Daten sammeln
+      const allKeys = [...Object.values(KEYS), "lo_todo", "lo_list_masters"];
+      const result = {};
+      for (const k of allKeys) {
+        const v = await loadData(k);
+        if (v !== null) result[k] = v;
+      }
+      result["_backup_date"] = new Date().toLocaleDateString("de-DE", {
+        day:"2-digit", month:"2-digit", year:"numeric", hour:"2-digit", minute:"2-digit"
+      });
   const importData = async () => {
     setStatus(null);
     try {
