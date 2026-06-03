@@ -5,6 +5,9 @@ import {
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Notifications from "expo-notifications";
+import * as FileSystem from "expo-file-system";
+import * as Sharing from "expo-sharing";
+import * as DocumentPicker from "expo-document-picker";
 
 // Navigationsleisten-Höhe für Android
 const _sh = Dimensions.get("screen").height;
@@ -165,7 +168,7 @@ function useDrag(items, onReorder) {
     const it = items[drag.current.fromIdx]; return it && it.id === itemId;
   }
 
-  return { displayItems, makeHandlers, isDragging };
+  return { displayItems, makeHandlers, isDragging, isDragActive: !!drag.current };
 }
 
 // Vollbild-Modal für komplexe Formulare
@@ -536,7 +539,7 @@ function RemindersTab({C}){
   );
 }
 
-function ChecklistTab({C}){const[lists,setLists]=useState([]);const[openId,setOpenId]=useState(null);const[showNew,setShowNew]=useState(false);const[newName,setNewName]=useState("");const[renameId,setRenameId]=useState(null);const[newItem,setNewItem]=useState("");const[editItem,setEditItem]=useState(null);const[editVal,setEditVal]=useState("");useEffect(()=>{loadData(KEYS.cl).then(d=>{if(d)setLists(d);});},[]);useEffect(()=>{const sub=BackHandler.addEventListener("hardwareBackPress",()=>{if(openId){setOpenId(null);return true;}return false;});return()=>sub.remove();},[openId]);const persist=useCallback(l=>{setLists(l);saveData(KEYS.cl,l);},[]);const createList=()=>{if(!newName.trim())return;if(renameId){persist(lists.map(l=>l.id===renameId?{...l,name:newName.trim()}:l));setRenameId(null);}else{persist([...lists,{id:uid(),name:newName.trim(),items:[]}]);}setNewName("");setShowNew(false);};const deleteList=id=>Alert.alert("Liste löschen?","Dauerhaft löschen?",[{text:"Abbrechen",style:"cancel"},{text:"Löschen",style:"destructive",onPress:()=>{persist(lists.filter(l=>l.id!==id));if(openId===id)setOpenId(null);}}]);const addItem=()=>{if(!newItem.trim()||!openId)return;persist(lists.map(l=>l.id===openId?{...l,items:[...l.items,{id:uid(),text:newItem.trim(),done:false}]}:l));setNewItem("");};const toggleItem=id=>persist(lists.map(l=>l.id===openId?{...l,items:l.items.map(i=>i.id===id?{...i,done:!i.done}:i)}:l));const deleteItem=id=>persist(lists.map(l=>l.id===openId?{...l,items:l.items.filter(i=>i.id!==id)}:l));const saveEdit=()=>{if(!editVal.trim())return;persist(lists.map(l=>l.id===openId?{...l,items:l.items.map(i=>i.id===editItem.id?{...i,text:editVal.trim()}:i)}:l));setEditItem(null);setEditVal("");};const resetAll=()=>persist(lists.map(l=>l.id===openId?{...l,items:l.items.map(i=>({...i,done:false}))}:l));const current=lists.find(l=>l.id===openId);const clDrag=useDrag(current?current.items:[],items=>persist(lists.map(l=>l.id===openId?{...l,items}:l)));if(openId&&current){const done=current.items.filter(i=>i.done).length,total=current.items.length;return(<View style={{flex:1}}><View style={{flexDirection:"row",alignItems:"center",gap:10,marginBottom:18}}><TouchableOpacity onPress={()=>setOpenId(null)} style={{backgroundColor:C.bg4,padding:8,borderRadius:10}}><Text style={{color:C.text3,fontSize:20}}>‹</Text></TouchableOpacity><Text style={{color:C.text,fontSize:20,fontWeight:"800",flex:1}}>{current.name}</Text><TouchableOpacity onPress={()=>{setNewName(current.name);setRenameId(current.id);setShowNew(true);}} style={{backgroundColor:C.bg4,padding:8,borderRadius:10}}><Text style={{fontSize:16}}>✏️</Text></TouchableOpacity></View>{total>0&&(<View style={{backgroundColor:C.bg4,borderRadius:14,padding:10,marginBottom:14,flexDirection:"row",alignItems:"center",gap:10,borderWidth:1,borderColor:C.border}}><Text style={{color:C.text3,fontSize:12,fontWeight:"700"}}>{done}/{total}</Text><View style={{flex:1,backgroundColor:C.border,borderRadius:3,height:6,overflow:"hidden"}}><View style={{height:"100%",width:`${Math.round(done/total*100)}%`,backgroundColor:C.accent}}/></View>{done>0&&<Btn C={C} variant="ghost" small label="Reset" onPress={resetAll}/>}</View>)}<View style={{flexDirection:"row",gap:8,marginBottom:14}}><Inp C={C} value={newItem} onChangeText={setNewItem} placeholder="Neuer Eintrag…" onSubmitEditing={addItem}/><Btn C={C} label="+" onPress={addItem} style={{paddingHorizontal:18,flex:0}}/></View><ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">{current.items.length===0&&<EmptyState C={C} emoji="📋" text="Noch keine Einträge"/>}{clDrag.displayItems.map((item)=>(<View key={item.id} style={{flexDirection:"row",alignItems:"center",gap:8,paddingVertical:7,paddingHorizontal:10,backgroundColor:clDrag.isDragging(item.id)?C.accent+"22":item.done?C.bg4:C.card,borderRadius:12,marginBottom:5,borderWidth:1.5,borderColor:clDrag.isDragging(item.id)?C.accent:item.done?C.border2:C.border,elevation:clDrag.isDragging(item.id)?4:item.done?0:1}}><View {...clDrag.makeHandlers(item.id)} style={{paddingHorizontal:5,paddingVertical:8}}><Text style={{color:C.text4,fontSize:16,opacity:0.6}}>☰</Text></View><TouchableOpacity onPress={()=>toggleItem(item.id)} style={{width:24,height:24,borderRadius:7,borderWidth:2,borderColor:item.done?C.accent:C.border,backgroundColor:item.done?C.accent:"transparent",alignItems:"center",justifyContent:"center"}}>{item.done&&<Text style={{color:"#fff",fontSize:13,fontWeight:"700"}}>✓</Text>}</TouchableOpacity><Text style={{flex:1,color:item.done?C.text4:C.text,fontSize:14,fontWeight:"500",textDecorationLine:item.done?"line-through":"none"}}>{item.text}</Text><TouchableOpacity onPress={()=>{setEditItem(item);setEditVal(item.text);}} style={{padding:3,opacity:0.6}}><Text style={{fontSize:16}}>✏️</Text></TouchableOpacity><TouchableOpacity onPress={()=>deleteItem(item.id)} style={{padding:3,opacity:0.6}}><Text style={{fontSize:16}}>🗑</Text></TouchableOpacity></View>))}</ScrollView><AppModal C={C} visible={!!editItem} title="Eintrag bearbeiten" onClose={()=>setEditItem(null)}><FLabel C={C} text="Text"/><Inp C={C} value={editVal} onChangeText={setEditVal} onSubmitEditing={saveEdit} style={{flex:0}}/><View style={{flexDirection:"row",gap:8,marginTop:14}}><Btn C={C} label="Speichern" onPress={saveEdit}/><Btn C={C} variant="ghost" label="Abbrechen" onPress={()=>setEditItem(null)}/></View></AppModal><AppModal C={C} visible={showNew} title={renameId?"Umbenennen":"Neue Checkliste"} onClose={()=>{setShowNew(false);setNewName("");setRenameId(null);}}><FLabel C={C} text="Listenname"/><Inp C={C} value={newName} onChangeText={setNewName} placeholder="z.B. Anhänger anhängen…" onSubmitEditing={createList} style={{flex:0}}/><View style={{flexDirection:"row",gap:8,marginTop:14}}><Btn C={C} label={renameId?"Speichern":"Erstellen"} onPress={createList}/><Btn C={C} variant="ghost" label="Abbrechen" onPress={()=>{setShowNew(false);setNewName("");setRenameId(null);}}/></View></AppModal></View>);}return(<View style={{flex:1}}><SectionHeader C={C} title="Meine Checklisten" addLabel="+ Neue Liste" onAdd={()=>{setRenameId(null);setNewName("");setShowNew(true);}}/><ScrollView showsVerticalScrollIndicator={false}>{lists.length===0&&<EmptyState C={C} emoji="📋" text="Noch keine Listen" sub='z.B. „Anhänger anhängen"'/>}<View style={{flexDirection:"row",flexWrap:"wrap",marginHorizontal:-5}}>{lists.map(list=>{const done=list.items.filter(i=>i.done).length,total=list.items.length;return<Card key={list.id} C={C} title={list.name} sub={`${total} Einträge · ${done} erledigt`} progress={total?Math.round(done/total*100):null} accentColor={C.accent} onPress={()=>setOpenId(list.id)} onDelete={()=>deleteList(list.id)}/>;})}</View></ScrollView><AppModal C={C} visible={showNew} title="Neue Checkliste" onClose={()=>{setShowNew(false);setNewName("");}}><FLabel C={C} text="Listenname"/><Inp C={C} value={newName} onChangeText={setNewName} placeholder="z.B. Anhänger anhängen…" onSubmitEditing={createList} style={{flex:0}}/><View style={{flexDirection:"row",gap:8,marginTop:14}}><Btn C={C} label="Erstellen" onPress={createList}/><Btn C={C} variant="ghost" label="Abbrechen" onPress={()=>{setShowNew(false);setNewName("");}}/></View></AppModal></View>);}
+function ChecklistTab({C}){const[lists,setLists]=useState([]);const[openId,setOpenId]=useState(null);const[showNew,setShowNew]=useState(false);const[newName,setNewName]=useState("");const[renameId,setRenameId]=useState(null);const[newItem,setNewItem]=useState("");const[editItem,setEditItem]=useState(null);const[editVal,setEditVal]=useState("");useEffect(()=>{loadData(KEYS.cl).then(d=>{if(d)setLists(d);});},[]);useEffect(()=>{const sub=BackHandler.addEventListener("hardwareBackPress",()=>{if(openId){setOpenId(null);return true;}return false;});return()=>sub.remove();},[openId]);const persist=useCallback(l=>{setLists(l);saveData(KEYS.cl,l);},[]);const createList=()=>{if(!newName.trim())return;if(renameId){persist(lists.map(l=>l.id===renameId?{...l,name:newName.trim()}:l));setRenameId(null);}else{persist([...lists,{id:uid(),name:newName.trim(),items:[]}]);}setNewName("");setShowNew(false);};const deleteList=id=>Alert.alert("Liste löschen?","Dauerhaft löschen?",[{text:"Abbrechen",style:"cancel"},{text:"Löschen",style:"destructive",onPress:()=>{persist(lists.filter(l=>l.id!==id));if(openId===id)setOpenId(null);}}]);const addItem=()=>{if(!newItem.trim()||!openId)return;persist(lists.map(l=>l.id===openId?{...l,items:[...l.items,{id:uid(),text:newItem.trim(),done:false}]}:l));setNewItem("");};const toggleItem=id=>persist(lists.map(l=>l.id===openId?{...l,items:l.items.map(i=>i.id===id?{...i,done:!i.done}:i)}:l));const deleteItem=id=>persist(lists.map(l=>l.id===openId?{...l,items:l.items.filter(i=>i.id!==id)}:l));const saveEdit=()=>{if(!editVal.trim())return;persist(lists.map(l=>l.id===openId?{...l,items:l.items.map(i=>i.id===editItem.id?{...i,text:editVal.trim()}:i)}:l));setEditItem(null);setEditVal("");};const resetAll=()=>persist(lists.map(l=>l.id===openId?{...l,items:l.items.map(i=>({...i,done:false}))}:l));const current=lists.find(l=>l.id===openId);const clDrag=useDrag(current?current.items:[],items=>persist(lists.map(l=>l.id===openId?{...l,items}:l)));if(openId&&current){const done=current.items.filter(i=>i.done).length,total=current.items.length;return(<View style={{flex:1}}><View style={{flexDirection:"row",alignItems:"center",gap:10,marginBottom:18}}><TouchableOpacity onPress={()=>setOpenId(null)} style={{backgroundColor:C.bg4,padding:8,borderRadius:10}}><Text style={{color:C.text3,fontSize:20}}>‹</Text></TouchableOpacity><Text style={{color:C.text,fontSize:20,fontWeight:"800",flex:1}}>{current.name}</Text><TouchableOpacity onPress={()=>{setNewName(current.name);setRenameId(current.id);setShowNew(true);}} style={{backgroundColor:C.bg4,padding:8,borderRadius:10}}><Text style={{fontSize:16}}>✏️</Text></TouchableOpacity></View>{total>0&&(<View style={{backgroundColor:C.bg4,borderRadius:14,padding:10,marginBottom:14,flexDirection:"row",alignItems:"center",gap:10,borderWidth:1,borderColor:C.border}}><Text style={{color:C.text3,fontSize:12,fontWeight:"700"}}>{done}/{total}</Text><View style={{flex:1,backgroundColor:C.border,borderRadius:3,height:6,overflow:"hidden"}}><View style={{height:"100%",width:`${Math.round(done/total*100)}%`,backgroundColor:C.accent}}/></View>{done>0&&<Btn C={C} variant="ghost" small label="Reset" onPress={resetAll}/>}</View>)}<View style={{flexDirection:"row",gap:8,marginBottom:14}}><Inp C={C} value={newItem} onChangeText={setNewItem} placeholder="Neuer Eintrag…" onSubmitEditing={addItem}/><Btn C={C} label="+" onPress={addItem} style={{paddingHorizontal:18,flex:0}}/></View><ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">{current.items.length===0&&<EmptyState C={C} emoji="📋" text="Noch keine Einträge"/>}{(clDrag.isDragActive?clDrag.displayItems:current.items).map((item)=>(<View key={item.id} style={{flexDirection:"row",alignItems:"center",gap:8,paddingVertical:7,paddingHorizontal:10,backgroundColor:clDrag.isDragging(item.id)?C.accent+"22":item.done?C.bg4:C.card,borderRadius:12,marginBottom:5,borderWidth:1.5,borderColor:clDrag.isDragging(item.id)?C.accent:item.done?C.border2:C.border,elevation:clDrag.isDragging(item.id)?4:item.done?0:1}}><View {...clDrag.makeHandlers(item.id)} style={{paddingHorizontal:5,paddingVertical:8}}><Text style={{color:C.text4,fontSize:16,opacity:0.6}}>☰</Text></View><TouchableOpacity onPress={()=>toggleItem(item.id)} style={{width:24,height:24,borderRadius:7,borderWidth:2,borderColor:item.done?C.accent:C.border,backgroundColor:item.done?C.accent:"transparent",alignItems:"center",justifyContent:"center"}}>{item.done&&<Text style={{color:"#fff",fontSize:13,fontWeight:"700"}}>✓</Text>}</TouchableOpacity><Text style={{flex:1,color:item.done?C.text4:C.text,fontSize:14,fontWeight:"500",textDecorationLine:item.done?"line-through":"none"}}>{item.text}</Text><TouchableOpacity onPress={()=>{setEditItem(item);setEditVal(item.text);}} style={{padding:3,opacity:0.6}}><Text style={{fontSize:16}}>✏️</Text></TouchableOpacity><TouchableOpacity onPress={()=>deleteItem(item.id)} style={{padding:3,opacity:0.6}}><Text style={{fontSize:16}}>🗑</Text></TouchableOpacity></View>))}</ScrollView><AppModal C={C} visible={!!editItem} title="Eintrag bearbeiten" onClose={()=>setEditItem(null)}><FLabel C={C} text="Text"/><Inp C={C} value={editVal} onChangeText={setEditVal} onSubmitEditing={saveEdit} style={{flex:0}}/><View style={{flexDirection:"row",gap:8,marginTop:14}}><Btn C={C} label="Speichern" onPress={saveEdit}/><Btn C={C} variant="ghost" label="Abbrechen" onPress={()=>setEditItem(null)}/></View></AppModal><AppModal C={C} visible={showNew} title={renameId?"Umbenennen":"Neue Checkliste"} onClose={()=>{setShowNew(false);setNewName("");setRenameId(null);}}><FLabel C={C} text="Listenname"/><Inp C={C} value={newName} onChangeText={setNewName} placeholder="z.B. Anhänger anhängen…" onSubmitEditing={createList} style={{flex:0}}/><View style={{flexDirection:"row",gap:8,marginTop:14}}><Btn C={C} label={renameId?"Speichern":"Erstellen"} onPress={createList}/><Btn C={C} variant="ghost" label="Abbrechen" onPress={()=>{setShowNew(false);setNewName("");setRenameId(null);}}/></View></AppModal></View>);}return(<View style={{flex:1}}><SectionHeader C={C} title="Meine Checklisten" addLabel="+ Neue Liste" onAdd={()=>{setRenameId(null);setNewName("");setShowNew(true);}}/><ScrollView showsVerticalScrollIndicator={false}>{lists.length===0&&<EmptyState C={C} emoji="📋" text="Noch keine Listen" sub='z.B. „Anhänger anhängen"'/>}<View style={{flexDirection:"row",flexWrap:"wrap",marginHorizontal:-5}}>{lists.map(list=>{const done=list.items.filter(i=>i.done).length,total=list.items.length;return<Card key={list.id} C={C} title={list.name} sub={`${total} Einträge · ${done} erledigt`} progress={total?Math.round(done/total*100):null} accentColor={C.accent} onPress={()=>setOpenId(list.id)} onDelete={()=>deleteList(list.id)}/>;})}</View></ScrollView><AppModal C={C} visible={showNew} title="Neue Checkliste" onClose={()=>{setShowNew(false);setNewName("");}}><FLabel C={C} text="Listenname"/><Inp C={C} value={newName} onChangeText={setNewName} placeholder="z.B. Anhänger anhängen…" onSubmitEditing={createList} style={{flex:0}}/><View style={{flexDirection:"row",gap:8,marginTop:14}}><Btn C={C} label="Erstellen" onPress={createList}/><Btn C={C} variant="ghost" label="Abbrechen" onPress={()=>{setShowNew(false);setNewName("");}}/></View></AppModal></View>);}
 
 // ─── Mengen-Picker als scrollbare Liste ──────────────────────────────────────
 function QtyPicker({C, value, onChange}) {
@@ -582,7 +585,7 @@ function QtyPicker({C, value, onChange}) {
   );
 }
 
-function ShoppingTab({C}){const[lists,setLists]=useState([]);const[master,setMaster]=useState(DEFAULT_MASTER);const[listMasters,setListMasters]=useState({});const[openId,setOpenId]=useState(null);const[showNew,setShowNew]=useState(false);const[newName,setNewName]=useState("");const[newItem,setNewItem]=useState("");const[newQty,setNewQty]=useState("1");const[showMaster,setShowMaster]=useState(false);const[masterSearch,setMasterSearch]=useState("");const[newMasterItem,setNewMasterItem]=useState("");const[editItem,setEditItem]=useState(null);const[editVal,setEditVal]=useState("");const[editQty,setEditQty]=useState("");useEffect(()=>{loadData(KEYS.sh).then(d=>{if(d)setLists(d);});loadData(KEYS.master).then(d=>{if(d)setMaster(d);});loadData("lo_list_masters").then(d=>{if(d)setListMasters(d);});},[]);useEffect(()=>{const sub=BackHandler.addEventListener("hardwareBackPress",()=>{if(openId){setOpenId(null);return true;}return false;});return()=>sub.remove();},[openId]);const persistL=useCallback(l=>{setLists(l);saveData(KEYS.sh,l);},[]);const persistM=useCallback(m=>{setMaster(m);saveData(KEYS.master,m);},[]);const getListMaster=(lid)=>listMasters[lid]||master;const persistListMaster=useCallback((lid,m)=>{  const next={...listMasters,[lid]:m};  setListMasters(next);saveData("lo_list_masters",next);},[listMasters]);const createList=()=>{if(!newName.trim())return;persistL([...lists,{id:uid(),name:newName.trim(),items:[]}]);setNewName("");setShowNew(false);};const deleteList=id=>Alert.alert("Liste löschen?","Dauerhaft löschen?",[{text:"Abbrechen",style:"cancel"},{text:"Löschen",style:"destructive",onPress:()=>{persistL(lists.filter(l=>l.id!==id));if(openId===id)setOpenId(null);}}]);const clearAll=()=>Alert.alert("Liste leeren?","Alle Produkte löschen?",[{text:"Abbrechen",style:"cancel"},{text:"Alle löschen",style:"destructive",onPress:()=>persistL(lists.map(l=>l.id===openId?{...l,items:[]}:l))}]);const shDrag=useDrag(current?current.items:[],items=>persistL(lists.map(l=>l.id===openId?{...l,items}:l)));const addItem=(text,qty)=>{const t=(text||newItem).trim();if(!t||!openId)return;persistL(lists.map(l=>l.id===openId?{...l,items:[...l.items,{id:uid(),text:t,qty:(qty!==undefined?qty:newQty)||"1",done:false}]}:l));if(!text){setNewItem("");setNewQty("1");}};const toggleItem=id=>persistL(lists.map(l=>l.id===openId?{...l,items:l.items.map(i=>i.id===id?{...i,done:!i.done}:i)}:l));const deleteItem=id=>persistL(lists.map(l=>l.id===openId?{...l,items:l.items.filter(i=>i.id!==id)}:l));const saveEdit=()=>{if(!editVal.trim())return;persistL(lists.map(l=>l.id===openId?{...l,items:l.items.map(i=>i.id===editItem.id?{...i,text:editVal.trim(),qty:editQty.trim()}:i)}:l));setEditItem(null);};const current=lists.find(l=>l.id===openId);if(openId&&current){const done=current.items.filter(i=>i.done).length;const curMaster=getListMaster(current.id);const filtered=curMaster.filter(m=>m.toLowerCase().includes(masterSearch.toLowerCase())&&!current.items.some(i=>i.text===m));return(<View style={{flex:1}}><View style={{flexDirection:"row",alignItems:"center",gap:10,marginBottom:18}}><TouchableOpacity onPress={()=>setOpenId(null)} style={{backgroundColor:C.bg4,padding:8,borderRadius:10}}><Text style={{color:C.text3,fontSize:20}}>‹</Text></TouchableOpacity><Text style={{color:C.text,fontSize:20,fontWeight:"800",flex:1}}>{current.name}</Text><Btn C={C} variant="ghost" small label="⭐ Vorschläge" onPress={()=>setShowMaster(true)}/></View><View style={{flexDirection:"row",gap:8,marginBottom:14}}><QtyPicker C={C} value={newQty} onChange={setNewQty}/><Inp C={C} value={newItem} onChangeText={setNewItem} placeholder="Produkt hinzufügen…" onSubmitEditing={()=>addItem()}/><Btn C={C} label="+" onPress={()=>addItem()} style={{paddingHorizontal:18,flex:0}}/></View>{current.items.length>0&&<View style={{flexDirection:"row",justifyContent:"space-between",alignItems:"center",marginBottom:10}}><Text style={{color:C.text4,fontSize:12,fontWeight:"600"}}>{done}/{current.items.length} eingepackt</Text><TouchableOpacity onPress={clearAll} style={{backgroundColor:C.red+"22",paddingVertical:5,paddingHorizontal:10,borderRadius:8,borderWidth:1,borderColor:C.red+"44"}}><Text style={{color:C.red,fontSize:11,fontWeight:"700"}}>🗑 Alle löschen</Text></TouchableOpacity></View>}<ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">{current.items.length===0&&<EmptyState C={C} emoji="🛒" text="Noch nichts auf der Liste"/>}{shDrag.displayItems.map(item=>(<View key={item.id} style={{flexDirection:"row",alignItems:"center",gap:8,paddingVertical:7,paddingHorizontal:10,backgroundColor:shDrag.isDragging(item.id)?C.accent+"22":item.done?C.bg4:C.card,borderRadius:12,marginBottom:5,borderWidth:1.5,borderColor:shDrag.isDragging(item.id)?C.accent:item.done?C.border2:C.border,elevation:shDrag.isDragging(item.id)?4:item.done?0:1}}><View {...shDrag.makeHandlers(item.id)} style={{paddingHorizontal:4,paddingVertical:8}}><Text style={{color:C.text4,fontSize:16,opacity:0.6}}>☰</Text></View><TouchableOpacity onPress={()=>toggleItem(item.id)} style={{width:24,height:24,borderRadius:12,borderWidth:2,borderColor:item.done?C.accent:C.border,backgroundColor:item.done?C.accent:"transparent",alignItems:"center",justifyContent:"center"}}>{item.done&&<Text style={{color:"#fff",fontSize:13,fontWeight:"700"}}>✓</Text>}</TouchableOpacity>{item.qty?(<View style={{backgroundColor:C.orange+"33",paddingHorizontal:8,paddingVertical:2,borderRadius:8}}><Text style={{color:C.orange,fontSize:11,fontWeight:"700"}}>{item.qty}x</Text></View>):null}<Text style={{flex:1,color:item.done?C.text4:C.text,fontSize:14,fontWeight:"500",textDecorationLine:item.done?"line-through":"none"}}>{item.text}</Text><TouchableOpacity onPress={()=>{setEditItem(item);setEditVal(item.text);setEditQty(item.qty||"");}} style={{padding:3,opacity:0.6}}><Text style={{fontSize:16}}>✏️</Text></TouchableOpacity><TouchableOpacity onPress={()=>deleteItem(item.id)} style={{padding:3,opacity:0.6}}><Text style={{fontSize:16}}>🗑</Text></TouchableOpacity></View>))}</ScrollView>
+function ShoppingTab({C}){const[lists,setLists]=useState([]);const[master,setMaster]=useState(DEFAULT_MASTER);const[listMasters,setListMasters]=useState({});const[openId,setOpenId]=useState(null);const[showNew,setShowNew]=useState(false);const[newName,setNewName]=useState("");const[newItem,setNewItem]=useState("");const[newQty,setNewQty]=useState("1");const[showMaster,setShowMaster]=useState(false);const[masterSearch,setMasterSearch]=useState("");const[newMasterItem,setNewMasterItem]=useState("");const[editItem,setEditItem]=useState(null);const[editVal,setEditVal]=useState("");const[editQty,setEditQty]=useState("");useEffect(()=>{loadData(KEYS.sh).then(d=>{if(d)setLists(d);});loadData(KEYS.master).then(d=>{if(d)setMaster(d);});loadData("lo_list_masters").then(d=>{if(d)setListMasters(d);});},[]);useEffect(()=>{const sub=BackHandler.addEventListener("hardwareBackPress",()=>{if(openId){setOpenId(null);return true;}return false;});return()=>sub.remove();},[openId]);const persistL=useCallback(l=>{setLists(l);saveData(KEYS.sh,l);},[]);const persistM=useCallback(m=>{setMaster(m);saveData(KEYS.master,m);},[]);const getListMaster=(lid)=>listMasters[lid]||master;const persistListMaster=useCallback((lid,m)=>{  const next={...listMasters,[lid]:m};  setListMasters(next);saveData("lo_list_masters",next);},[listMasters]);const createList=()=>{if(!newName.trim())return;persistL([...lists,{id:uid(),name:newName.trim(),items:[]}]);setNewName("");setShowNew(false);};const deleteList=id=>Alert.alert("Liste löschen?","Dauerhaft löschen?",[{text:"Abbrechen",style:"cancel"},{text:"Löschen",style:"destructive",onPress:()=>{persistL(lists.filter(l=>l.id!==id));if(openId===id)setOpenId(null);}}]);const clearAll=()=>Alert.alert("Liste leeren?","Alle Produkte löschen?",[{text:"Abbrechen",style:"cancel"},{text:"Alle löschen",style:"destructive",onPress:()=>persistL(lists.map(l=>l.id===openId?{...l,items:[]}:l))}]);const addItem=(text,qty)=>{const t=(text||newItem).trim();if(!t||!openId)return;persistL(lists.map(l=>l.id===openId?{...l,items:[...l.items,{id:uid(),text:t,qty:(qty!==undefined?qty:newQty)||"1",done:false}]}:l));if(!text){setNewItem("");setNewQty("1");}};const toggleItem=id=>persistL(lists.map(l=>l.id===openId?{...l,items:l.items.map(i=>i.id===id?{...i,done:!i.done}:i)}:l));const deleteItem=id=>persistL(lists.map(l=>l.id===openId?{...l,items:l.items.filter(i=>i.id!==id)}:l));const saveEdit=()=>{if(!editVal.trim())return;persistL(lists.map(l=>l.id===openId?{...l,items:l.items.map(i=>i.id===editItem.id?{...i,text:editVal.trim(),qty:editQty.trim()}:i)}:l));setEditItem(null);};const current=lists.find(l=>l.id===openId);const shDrag=useDrag(current?current.items:[],itms=>persistL(lists.map(l=>l.id===openId?{...l,items:itms}:l)));if(openId&&current){const done=current.items.filter(i=>i.done).length;const curMaster=getListMaster(current.id);const filtered=curMaster.filter(m=>m.toLowerCase().includes(masterSearch.toLowerCase())&&!current.items.some(i=>i.text===m));return(<View style={{flex:1}}><View style={{flexDirection:"row",alignItems:"center",gap:10,marginBottom:18}}><TouchableOpacity onPress={()=>setOpenId(null)} style={{backgroundColor:C.bg4,padding:8,borderRadius:10}}><Text style={{color:C.text3,fontSize:20}}>‹</Text></TouchableOpacity><Text style={{color:C.text,fontSize:20,fontWeight:"800",flex:1}}>{current.name}</Text><Btn C={C} variant="ghost" small label="⭐ Vorschläge" onPress={()=>setShowMaster(true)}/></View><View style={{flexDirection:"row",gap:8,marginBottom:14}}><QtyPicker C={C} value={newQty} onChange={setNewQty}/><Inp C={C} value={newItem} onChangeText={setNewItem} placeholder="Produkt hinzufügen…" onSubmitEditing={()=>addItem()}/><Btn C={C} label="+" onPress={()=>addItem()} style={{paddingHorizontal:18,flex:0}}/></View>{current.items.length>0&&<View style={{flexDirection:"row",justifyContent:"space-between",alignItems:"center",marginBottom:10}}><Text style={{color:C.text4,fontSize:12,fontWeight:"600"}}>{done}/{current.items.length} eingepackt</Text><TouchableOpacity onPress={clearAll} style={{backgroundColor:C.red+"22",paddingVertical:5,paddingHorizontal:10,borderRadius:8,borderWidth:1,borderColor:C.red+"44"}}><Text style={{color:C.red,fontSize:11,fontWeight:"700"}}>🗑 Alle löschen</Text></TouchableOpacity></View>}<ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">{current.items.length===0&&<EmptyState C={C} emoji="🛒" text="Noch nichts auf der Liste"/>}{(shDrag.isDragActive?shDrag.displayItems:current.items).map(item=>(<View key={item.id} style={{flexDirection:"row",alignItems:"center",gap:8,paddingVertical:7,paddingHorizontal:10,backgroundColor:shDrag.isDragging(item.id)?C.accent+"22":item.done?C.bg4:C.card,borderRadius:12,marginBottom:5,borderWidth:1.5,borderColor:shDrag.isDragging(item.id)?C.accent:item.done?C.border2:C.border,elevation:shDrag.isDragging(item.id)?4:item.done?0:1}}><View {...shDrag.makeHandlers(item.id)} style={{paddingHorizontal:4,paddingVertical:8}}><Text style={{color:C.text4,fontSize:16,opacity:0.6}}>☰</Text></View><TouchableOpacity onPress={()=>toggleItem(item.id)} style={{width:24,height:24,borderRadius:12,borderWidth:2,borderColor:item.done?C.accent:C.border,backgroundColor:item.done?C.accent:"transparent",alignItems:"center",justifyContent:"center"}}>{item.done&&<Text style={{color:"#fff",fontSize:13,fontWeight:"700"}}>✓</Text>}</TouchableOpacity>{item.qty?(<View style={{backgroundColor:C.orange+"33",paddingHorizontal:8,paddingVertical:2,borderRadius:8}}><Text style={{color:C.orange,fontSize:11,fontWeight:"700"}}>{item.qty}x</Text></View>):null}<Text style={{flex:1,color:item.done?C.text4:C.text,fontSize:14,fontWeight:"500",textDecorationLine:item.done?"line-through":"none"}}>{item.text}</Text><TouchableOpacity onPress={()=>{setEditItem(item);setEditVal(item.text);setEditQty(item.qty||"");}} style={{padding:3,opacity:0.6}}><Text style={{fontSize:16}}>✏️</Text></TouchableOpacity><TouchableOpacity onPress={()=>deleteItem(item.id)} style={{padding:3,opacity:0.6}}><Text style={{fontSize:16}}>🗑</Text></TouchableOpacity></View>))}</ScrollView>
 
         <FullModal C={C} visible={showMaster} title={"⭐ Vorschläge: "+current.name} onClose={()=>{setShowMaster(false);setMasterSearch("");}}>
           <View style={{flexDirection:"row",gap:8,marginBottom:10}}>
@@ -691,7 +694,7 @@ function ToDoTab({C}){
 
         <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
           {current.items.length===0&&<EmptyState C={C} emoji="✅" text="Keine Aufgaben" sub="Füge deine erste Aufgabe hinzu"/>}
-          {tdDrag.displayItems.map(item=>(
+          {(tdDrag.isDragActive?tdDrag.displayItems:current.items).map(item=>(
             <View key={item.id} style={{flexDirection:"row",alignItems:"center",gap:7,paddingVertical:7,paddingHorizontal:10,
               backgroundColor:tdDrag.isDragging(item.id)?C.accent+"22":item.done?C.bg4:C.card,borderRadius:12,marginBottom:5,
               borderWidth:1.5,borderColor:tdDrag.isDragging(item.id)?C.accent:item.done?C.border2:item.priority?C.orange:C.border,
@@ -787,11 +790,117 @@ function ToDoTab({C}){
 // TAB: EINSTELLUNGEN & BACKUP
 // ═══════════════════════════════════════════════════════════════════════════════
 function SettingsTab({C}) {
-  const [backupText, setBackupText] = useState("");
-  const [importText, setImportText] = useState("");
-  const [status, setStatus] = useState(null); // {ok, msg}
-  const [showImport, setShowImport] = useState(false);
+  const [status, setStatus] = useState(null);
   const [loading, setLoading] = useState(false);
+
+  const exportData = async () => {
+    setLoading(true);
+    setStatus(null);
+    try {
+      const allKeys = [...Object.values(KEYS), "lo_todo", "lo_list_masters"];
+      const result = {};
+      for (const k of allKeys) {
+        const v = await loadData(k);
+        if (v !== null) result[k] = v;
+      }
+      result["_backup_date"] = new Date().toLocaleDateString("de-DE", {
+        day:"2-digit", month:"2-digit", year:"numeric", hour:"2-digit", minute:"2-digit"
+      });
+      const json = JSON.stringify(result, null, 2);
+      const date = new Date().toISOString().slice(0,10);
+      const path = FileSystem.documentDirectory + "lottes_backup_" + date + ".json";
+      await FileSystem.writeAsStringAsync(path, json, { encoding: FileSystem.EncodingType.UTF8 });
+      const canShare = await Sharing.isAvailableAsync();
+      if (canShare) {
+        await Sharing.shareAsync(path, {
+          mimeType: "application/json",
+          dialogTitle: "Backup speichern",
+          UTI: "public.json",
+        });
+        setStatus({ok:true, msg:"✅ Backup-Datei erstellt und zum Speichern bereit!"});
+      } else {
+        setStatus({ok:false, msg:"❌ Teilen nicht verfügbar auf diesem Gerät."});
+      }
+    } catch(e) {
+      setStatus({ok:false, msg:"❌ Fehler: " + e.message});
+    }
+    setLoading(false);
+  };
+
+  const importData = async () => {
+    setStatus(null);
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: "application/json",
+        copyToCacheDirectory: true,
+      });
+      if (result.canceled) return;
+      const uri = result.assets[0].uri;
+      const json = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.UTF8 });
+      const data = JSON.parse(json);
+      setLoading(true);
+      let count = 0;
+      for (const [k, v] of Object.entries(data)) {
+        if (k !== "_backup_date" && v !== null) {
+          await saveData(k, v);
+          count++;
+        }
+      }
+      setStatus({ok:true, msg:"✅ " + count + " Datensätze wiederhergestellt! Bitte App neu starten."});
+    } catch(e) {
+      setStatus({ok:false, msg:"❌ Fehler beim Einlesen: " + e.message});
+    }
+    setLoading(false);
+  };
+
+  return (
+    <ScrollView showsVerticalScrollIndicator={false}>
+      <Text style={{color:C.text, fontSize:20, fontWeight:"800", marginBottom:20}}>Einstellungen</Text>
+
+      {status && (
+        <View style={{backgroundColor:status.ok?C.accent+"22":C.red+"22",
+          borderRadius:12, padding:14, marginBottom:16,
+          borderWidth:1.5, borderColor:status.ok?C.accent:C.red}}>
+          <Text style={{color:status.ok?C.accent:C.red, fontSize:13, fontWeight:"600"}}>{status.msg}</Text>
+        </View>
+      )}
+
+      {/* EXPORT */}
+      <View style={{backgroundColor:C.card, borderRadius:16, padding:16, marginBottom:14,
+        borderWidth:1.5, borderColor:C.border}}>
+        <Text style={{color:C.text, fontSize:16, fontWeight:"800", marginBottom:4}}>📤 Backup erstellen</Text>
+        <Text style={{color:C.text4, fontSize:12, marginBottom:12}}>
+          Erstellt eine JSON-Datei mit allen deinen Daten. Du kannst sie in Downloads speichern, per E-Mail senden oder auf Google Drive ablegen.
+        </Text>
+        <Btn C={C} label={loading?"Lädt…":"Backup als Datei speichern"} onPress={exportData} disabled={loading}
+          style={{alignSelf:"flex-start"}}/>
+      </View>
+
+      {/* IMPORT */}
+      <View style={{backgroundColor:C.card, borderRadius:16, padding:16, marginBottom:14,
+        borderWidth:1.5, borderColor:C.border}}>
+        <Text style={{color:C.text, fontSize:16, fontWeight:"800", marginBottom:4}}>📥 Backup wiederherstellen</Text>
+        <Text style={{color:C.text4, fontSize:12, marginBottom:12}}>
+          Wähle eine zuvor gespeicherte Backup-Datei aus. Bestehende Daten werden überschrieben!
+        </Text>
+        <Btn C={C} variant="ghost" label={loading?"Lädt…":"Backup-Datei auswählen…"} onPress={importData} disabled={loading}
+          style={{alignSelf:"flex-start"}}/>
+      </View>
+
+      {/* INFO */}
+      <View style={{backgroundColor:C.card, borderRadius:16, padding:16,
+        borderWidth:1.5, borderColor:C.border, marginBottom:8}}>
+        <Text style={{color:C.text, fontSize:16, fontWeight:"800", marginBottom:10}}>ℹ️ App Info</Text>
+        {[["App","Lotte's Organizer"],["Version","1.0.0"],["Speicher","Lokal auf dem Gerät"]].map(([k,v])=>(
+          <View key={k} style={{flexDirection:"row",justifyContent:"space-between",marginBottom:4}}>
+            <Text style={{color:C.text4,fontSize:12}}>{k}</Text>
+            <Text style={{color:C.text3,fontSize:12,fontWeight:"600"}}>{v}</Text>
+          </View>
+        ))}
+      </View>
+    </ScrollView>
+  );
+}
 
   const exportData = async () => {
     setLoading(true);
@@ -807,137 +916,36 @@ function SettingsTab({C}) {
         day:"2-digit", month:"2-digit", year:"numeric",
         hour:"2-digit", minute:"2-digit"
       });
-      setBackupText(JSON.stringify(result));
-      setStatus({ok:true, msg:"✅ Backup erstellt! Drücke lange auf den Text unten um ihn zu kopieren."});
+      const json = JSON.stringify(result, null, 2);
+      const date = new Date().toISOString().slice(0,10);
+      const path = FileSystem.documentDirectory + "lottes_backup_" + date + ".json";
+      await FileSystem.writeAsStringAsync(path, json, { encoding: FileSystem.EncodingType.UTF8 });
+      await Sharing.shareAsync(path, { mimeType:"application/json", dialogTitle:"Backup speichern" });
+      setStatus({ok:true, msg:"✅ Backup erstellt und zum Speichern bereit!"});
     } catch(e) {
-      setStatus({ok:false, msg:"❌ Fehler beim Exportieren: "+e.message});
+      setStatus({ok:false, msg:"❌ Fehler: "+e.message});
     }
     setLoading(false);
   };
 
   const importData = async () => {
-    if (!importText.trim()) return;
-    setLoading(true);
     setStatus(null);
     try {
-      const data = JSON.parse(importText.trim());
+      const res = await DocumentPicker.getDocumentAsync({ type:"application/json", copyToCacheDirectory:true });
+      if (res.canceled) return;
+      setLoading(true);
+      const json = await FileSystem.readAsStringAsync(res.assets[0].uri);
+      const data = JSON.parse(json);
       let count = 0;
       for (const [k, v] of Object.entries(data)) {
-        if (k !== "_backup_date" && v !== null) {
-          await saveData(k, v);
-          count++;
-        }
+        if (k !== "_backup_date" && v !== null) { await saveData(k, v); count++; }
       }
-      setStatus({ok:true, msg:"✅ "+count+" Datensätze importiert! Bitte App neu starten (schließen & öffnen)."});
-      setImportText("");
-      setShowImport(false);
+      setStatus({ok:true, msg:"✅ "+count+" Datensätze wiederhergestellt! Bitte App neu starten."});
     } catch(e) {
-      setStatus({ok:false, msg:"❌ Ungültiges Backup-Format. Bitte vollständigen Backup-Text einfügen."});
+      setStatus({ok:false, msg:"❌ Fehler: "+e.message});
     }
     setLoading(false);
   };
 
-  return (
-    <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-      <Text style={{color:C.text, fontSize:20, fontWeight:"800", marginBottom:20}}>
-        Einstellungen
-      </Text>
-
-      {/* Status */}
-      {status && (
-        <View style={{backgroundColor:status.ok?C.accent+"22":C.red+"22",
-          borderRadius:12, padding:14, marginBottom:16,
-          borderWidth:1.5, borderColor:status.ok?C.accent:C.red}}>
-          <Text style={{color:status.ok?C.accent:C.red, fontSize:13, fontWeight:"600"}}>
-            {status.msg}
-          </Text>
-        </View>
-      )}
-
-      {/* BACKUP EXPORTIEREN */}
-      <View style={{backgroundColor:C.card, borderRadius:16, padding:16, marginBottom:14,
-        borderWidth:1.5, borderColor:C.border}}>
-        <Text style={{color:C.text, fontSize:16, fontWeight:"800", marginBottom:4}}>
-          📤 Backup erstellen
-        </Text>
-        <Text style={{color:C.text4, fontSize:12, marginBottom:12}}>
-          Exportiert alle Kalendereinträge, Listen und Einstellungen als Text. Den Text kannst du in eine Notiz oder E-Mail kopieren.
-        </Text>
-        <Btn C={C} label={loading?"Lädt…":"Backup exportieren"} onPress={exportData} disabled={loading}/>
-        {backupText ? (
-          <View style={{marginTop:12}}>
-            <Text style={{color:C.text4, fontSize:11, marginBottom:6}}>
-              ↓ Langer Druck → Alles auswählen → Kopieren
-            </Text>
-            <TextInput
-              value={backupText}
-              editable={true}
-              multiline={true}
-              selectTextOnFocus={true}
-              style={{backgroundColor:C.bg4, borderRadius:10, padding:10,
-                color:C.text3, fontSize:10, borderWidth:1, borderColor:C.border,
-                maxHeight:120, fontFamily:"monospace"}}
-            />
-          </View>
-        ) : null}
-      </View>
-
-      {/* BACKUP IMPORTIEREN */}
-      <View style={{backgroundColor:C.card, borderRadius:16, padding:16, marginBottom:14,
-        borderWidth:1.5, borderColor:C.border}}>
-        <Text style={{color:C.text, fontSize:16, fontWeight:"800", marginBottom:4}}>
-          📥 Backup wiederherstellen
-        </Text>
-        <Text style={{color:C.text4, fontSize:12, marginBottom:12}}>
-          Füge einen zuvor exportierten Backup-Text ein. Bestehende Daten werden überschrieben!
-        </Text>
-        {!showImport ? (
-          <Btn C={C} variant="ghost" label="Backup einfügen…" onPress={()=>setShowImport(true)}/>
-        ) : (
-          <View>
-            <TextInput
-              value={importText}
-              onChangeText={setImportText}
-              placeholder="Backup-Text hier einfügen…"
-              placeholderTextColor={C.text5}
-              multiline={true}
-              style={{backgroundColor:C.bg4, borderRadius:10, padding:10,
-                color:C.text, fontSize:11, borderWidth:1.5,
-                borderColor:importText?C.accent:C.border,
-                minHeight:80, marginBottom:10}}
-            />
-            <View style={{flexDirection:"row", gap:8}}>
-              <Btn C={C} label="Importieren" onPress={importData}
-                disabled={!importText.trim()||loading}/>
-              <Btn C={C} variant="ghost" label="Abbrechen"
-                onPress={()=>{setShowImport(false);setImportText("");}}/>
-            </View>
-          </View>
-        )}
-      </View>
-
-      {/* APP INFO */}
-      <View style={{backgroundColor:C.card, borderRadius:16, padding:16,
-        borderWidth:1.5, borderColor:C.border, marginBottom:8}}>
-        <Text style={{color:C.text, fontSize:16, fontWeight:"800", marginBottom:10}}>
-          ℹ️ App Info
-        </Text>
-        <View style={{gap:6}}>
-          {[
-            ["App", "Lotte's Organizer"],
-            ["Version", "1.0.0"],
-            ["Tabs", "Kalender · Checklisten · To-Do · Einkauf"],
-            ["Speicher", "Lokal auf dem Gerät"],
-          ].map(([k,v])=>(
-            <View key={k} style={{flexDirection:"row", justifyContent:"space-between"}}>
-              <Text style={{color:C.text4, fontSize:12}}>{k}</Text>
-              <Text style={{color:C.text3, fontSize:12, fontWeight:"600", flex:1, textAlign:"right"}}>{v}</Text>
-            </View>
-          ))}
-        </View>
-      </View>
-    </ScrollView>
-  );
-}
 
 export default function App(){const[isDark,setIsDark]=useState(true);const[themeLoaded,setThemeLoaded]=useState(false);const[tab,setTab]=useState(0);const C=isDark?DARK:LIGHT;useEffect(()=>{loadData(KEYS.theme).then(d=>{if(d!==null)setIsDark(d);setThemeLoaded(true);});},[]);const toggleTheme=()=>{const next=!isDark;setIsDark(next);saveData(KEYS.theme,next);};if(!themeLoaded)return null;const tabs=[{label:"Kalender",emoji:"📅",comp:<RemindersTab C={C}/>},{label:"Checklisten",emoji:"📋",comp:<ChecklistTab C={C}/>},{label:"To-Do",emoji:"✅",comp:<ToDoTab C={C}/>},{label:"Einkauf",emoji:"🛒",comp:<ShoppingTab C={C}/>},{label:"Einstellg.",emoji:"⚙️",comp:<SettingsTab C={C}/>}];return(<SafeAreaView style={{flex:1,backgroundColor:C.bg}}><StatusBar barStyle={C.statusBar} backgroundColor={C.bg}/><View style={{paddingHorizontal:16,paddingTop:Platform.OS==="android"?22:8,paddingBottom:10,flexDirection:"row",alignItems:"center",gap:10,borderBottomWidth:1,borderBottomColor:C.border,backgroundColor:C.bg}}><Text style={{fontSize:28}}>🚐</Text><View style={{flex:1}}><Text style={{color:C.text,fontSize:20,fontWeight:"800",letterSpacing:0.2}}>Lotte's Organizer</Text><Text style={{color:C.text4,fontSize:11,fontWeight:"600"}}>Dein Camping-Begleiter</Text></View><View style={{flexDirection:"row",alignItems:"center",gap:6}}><Text style={{fontSize:16}}>{isDark?"🌙":"☀️"}</Text><Switch value={isDark} onValueChange={toggleTheme} trackColor={{false:"#e8d5c8",true:"#2d5a2d"}} thumbColor={isDark?DARK.accent:LIGHT.accent}/></View></View><View style={{flex:1,padding:16}}>{tabs[tab].comp}</View><View style={{flexDirection:"row",borderTopWidth:1,borderTopColor:C.border,backgroundColor:C.bg3,shadowColor:"#000",shadowOpacity:0.06,shadowRadius:8,shadowOffset:{width:0,height:-2},elevation:8}}>{tabs.map((t,i)=>(<TouchableOpacity key={i} onPress={()=>setTab(i)} activeOpacity={0.7} style={{flex:1,paddingTop:6,paddingBottom:4,alignItems:"center",gap:2}}><View style={{padding:5,borderRadius:10,backgroundColor:tab===i?C.accent+"22":"transparent"}}><Text style={{fontSize:20}}>{t.emoji}</Text></View><Text style={{fontSize:9,fontWeight:"700",color:tab===i?C.accent:C.text4}}>{t.label}</Text></TouchableOpacity>))}</View><View style={{height:NAV_BAR_H,backgroundColor:C.bg3}}/></SafeAreaView>);}
