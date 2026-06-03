@@ -10,7 +10,8 @@
           "color": "#4caf50",
           "sounds": []
         }
-      ]
+      ],
+      "expo-sharing"
     ],
     "version": "1.0.0",
     "orientation": "portrait",
