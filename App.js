@@ -8,6 +8,7 @@ import * as Notifications from "expo-notifications";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import * as DocumentPicker from "expo-document-picker";
+import * as Updates from "expo-updates";
 
 // Navigationsleisten-Höhe für Android
 const _sh = Dimensions.get("screen").height;
@@ -75,7 +76,7 @@ async function cancelNotif(notifId) {
   if (notifId) { try { await Notifications.cancelScheduledNotificationAsync(notifId); } catch(e) {} }
 }
 
-const KEYS = { cl:"lo_checklists", sh:"lo_shopping", master:"lo_master", rm:"lo_reminders", theme:"lo_theme" };
+const KEYS = { cl:"lo_cl", sh:"lo_sh", master:"lo_master", rm:"lo_reminders", theme:"lo_theme" };
 async function loadData(k) { try { const v=await AsyncStorage.getItem(k); return v?JSON.parse(v):null; } catch(e) { return null; } }
 async function saveData(k,v) { try { await AsyncStorage.setItem(k,JSON.stringify(v)); } catch(e) {} }
 
@@ -838,13 +839,23 @@ function SettingsTab({C}) {
       const data = JSON.parse(json);
       let count = 0;
       for (const [k, v] of Object.entries(data)) {
-        if (k !== "_backup_date" && v !== null) { await saveData(k, v); count++; }
+        if (k === "_backup_date" || v === null) continue;
+        await AsyncStorage.setItem(k, JSON.stringify(v));
+        count++;
       }
-      setStatus({ok:true, msg:count + " Datensaetze wiederhergestellt. Bitte App neu starten."});
+      setLoading(false);
+      Alert.alert(
+        "✅ Backup wiederhergestellt",
+        count + " Datensätze importiert.\n\nDie App startet jetzt neu um die Daten zu laden.",
+        [{text:"OK", onPress: async () => {
+          try { await Updates.reloadAsync(); }
+          catch(e) { BackHandler.exitApp(); }
+        }}]
+      );
     } catch(e) {
       setStatus({ok:false, msg:"Fehler: " + e.message});
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (
