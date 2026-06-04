@@ -1,3 +1,4 @@
+// Lotte's Organizer v1.1.4
 import { useState, useEffect, useCallback, useRef } from "react";
 import {
   View, Text, TextInput, TouchableOpacity, ScrollView,
