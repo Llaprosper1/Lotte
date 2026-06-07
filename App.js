@@ -611,7 +611,6 @@ function ShoppingTab({C}){const[lists,setLists]=useState([]);const[master,setMas
         <AppModal C={C} visible={!!editItem} title="Produkt bearbeiten" onClose={()=>setEditItem(null)}><FLabel C={C} text="Menge"/><QtyPicker C={C} value={editQty} onChange={setEditQty}/><View style={{height:12}}/><FLabel C={C} text="Produkt"/><Inp C={C} value={editVal} onChangeText={setEditVal} onSubmitEditing={saveEdit} style={{flex:0}}/><View style={{flexDirection:"row",gap:8,marginTop:14}}><Btn C={C} label="Speichern" onPress={saveEdit}/><Btn C={C} variant="ghost" label="Abbrechen" onPress={()=>setEditItem(null)}/></View></AppModal></View>);}
 
   return(<View style={{flex:1}}><SectionHeader C={C} title="Einkaufslisten" addLabel="+ Neue Liste" onAdd={()=>{setNewName("");setShowNew(true);}}/><ScrollView showsVerticalScrollIndicator={false}>{lists.length===0&&<EmptyState C={C} emoji="🛒" text="Noch keine Einkaufslisten"/>}<View style={{flexDirection:"row",flexWrap:"wrap",marginHorizontal:-5}}>{lists.map(list=>{const done=list.items.filter(i=>i.done).length;return<Card key={list.id} C={C} title={list.name} sub={`${list.items.length} Produkte · ${done} erledigt`} accentColor={C.orange} onPress={()=>setOpenId(list.id)} onDelete={()=>deleteList(list.id)}/>;})}</View></ScrollView><FullModal C={C} visible={showNew} title="Neue Einkaufsliste" onClose={()=>{setShowNew(false);setNewName("");}}><FLabel C={C} text="Listenname"/><Inp C={C} value={newName} onChangeText={setNewName} placeholder="z.B. Campingwochenende…" onSubmitEditing={createList} style={{flex:0}}/><View style={{flexDirection:"row",gap:8,marginTop:14}}><Btn C={C} label="Erstellen" onPress={createList}/><Btn C={C} variant="ghost" label="Abbrechen" onPress={()=>{setShowNew(false);setNewName("");}}/>    </View></FullModal></View>);}
-
 // ═══════════════════════════════════════════════════════════════════════════════
 // TAB: TO-DO (flache Liste)
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -625,16 +624,11 @@ function ToDoTab({C}){
 
   useEffect(()=>{
     loadData("lo_todo").then(d=>{
-      // Kompatibilitaet: altes Format war Array von Listen
-      if(d && Array.isArray(d) && d.length>0 && d[0].items){
-        // Alte Liste-von-Listen-Struktur umwandeln
+      if(d&&Array.isArray(d)&&d.length>0&&d[0].items){
         const flat=[];
         d.forEach(list=>list.items.forEach(i=>flat.push({id:i.id,text:i.text,note:i.note||"",done:i.done||false,priority:i.priority||false})));
-        setItems(flat);
-        saveData("lo_todo",flat);
-      } else if(d && Array.isArray(d)){
-        setItems(d);
-      }
+        setItems(flat);saveData("lo_todo",flat);
+      } else if(d&&Array.isArray(d)){setItems(d);}
     });
   },[]);
 
@@ -660,8 +654,6 @@ function ToDoTab({C}){
   ]);
 
   const done=items.filter(i=>i.done).length;
-  const total=items.length;
-  // Sortierung: offene Priorität zuerst, dann offen, dann erledigt
   const sorted=(tdDrag.isDragActive?tdDrag.displayItems:[...items].sort((a,b)=>{
     if(a.done!==b.done)return a.done?1:-1;
     if(a.priority!==b.priority)return a.priority?-1:1;
@@ -673,17 +665,18 @@ function ToDoTab({C}){
       <View style={{flexDirection:"row",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
         <Text style={{color:C.text,fontSize:20,fontWeight:"800"}}>To-Do</Text>
         {done>0&&<Btn C={C} variant="ghost" small label="Reset" onPress={resetAll}/>}
+      </View>
 
       <View style={{marginBottom:10}}>
         <View style={{flexDirection:"row",gap:8,marginBottom:5}}>
-          <Inp C={C} value={newItem} onChangeText={setNewItem} placeholder="Neue Aufgabe…" onSubmitEditing={addItem}/>
+          <Inp C={C} value={newItem} onChangeText={setNewItem} placeholder="Neue Aufgabe..." onSubmitEditing={addItem}/>
           <Btn C={C} label="+" onPress={addItem} style={{paddingHorizontal:18,flex:0}}/>
         </View>
-        <Inp C={C} value={newNote} onChangeText={setNewNote} placeholder="Notiz (optional)…" style={{fontSize:13}}/>
+        <Inp C={C} value={newNote} onChangeText={setNewNote} placeholder="Notiz (optional)..." style={{fontSize:13}}/>
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-        {items.length===0&&<EmptyState C={C} emoji="✅" text="Noch keine Aufgaben" sub="Füge deine erste Aufgabe hinzu"/>}
+        {items.length===0&&<EmptyState C={C} emoji="checkmark.circle" text="Noch keine Aufgaben" sub="Fuege deine erste Aufgabe hinzu"/>}
         {sorted.map(item=>(
           <View key={item.id} style={{flexDirection:"row",alignItems:"center",gap:7,
             paddingVertical:7,paddingHorizontal:10,
@@ -724,7 +717,7 @@ function ToDoTab({C}){
         <FLabel C={C} text="Aufgabe"/>
         <Inp C={C} value={editVal} onChangeText={setEditVal} onSubmitEditing={saveEdit} style={{flex:0,marginBottom:12}}/>
         <FLabel C={C} text="Notiz"/>
-        <Inp C={C} value={editNote} onChangeText={setEditNote} placeholder="Optional…" style={{flex:0}}/>
+        <Inp C={C} value={editNote} onChangeText={setEditNote} placeholder="Optional..." style={{flex:0}}/>
         <View style={{flexDirection:"row",gap:8,marginTop:14}}>
           <Btn C={C} label="Speichern" onPress={saveEdit}/>
           <Btn C={C} variant="ghost" label="Abbrechen" onPress={()=>setEditItem(null)}/>
@@ -733,6 +726,7 @@ function ToDoTab({C}){
     </View>
   );
 }
+
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TAB: EINSTELLUNGEN & BACKUP
