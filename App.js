@@ -613,175 +613,134 @@ function ShoppingTab({C}){const[lists,setLists]=useState([]);const[master,setMas
   return(<View style={{flex:1}}><SectionHeader C={C} title="Einkaufslisten" addLabel="+ Neue Liste" onAdd={()=>{setNewName("");setShowNew(true);}}/><ScrollView showsVerticalScrollIndicator={false}>{lists.length===0&&<EmptyState C={C} emoji="🛒" text="Noch keine Einkaufslisten"/>}<View style={{flexDirection:"row",flexWrap:"wrap",marginHorizontal:-5}}>{lists.map(list=>{const done=list.items.filter(i=>i.done).length;return<Card key={list.id} C={C} title={list.name} sub={`${list.items.length} Produkte · ${done} erledigt`} accentColor={C.orange} onPress={()=>setOpenId(list.id)} onDelete={()=>deleteList(list.id)}/>;})}</View></ScrollView><FullModal C={C} visible={showNew} title="Neue Einkaufsliste" onClose={()=>{setShowNew(false);setNewName("");}}><FLabel C={C} text="Listenname"/><Inp C={C} value={newName} onChangeText={setNewName} placeholder="z.B. Campingwochenende…" onSubmitEditing={createList} style={{flex:0}}/><View style={{flexDirection:"row",gap:8,marginTop:14}}><Btn C={C} label="Erstellen" onPress={createList}/><Btn C={C} variant="ghost" label="Abbrechen" onPress={()=>{setShowNew(false);setNewName("");}}/>    </View></FullModal></View>);}
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// TAB: TODO
+// TAB: TO-DO (flache Liste)
 // ═══════════════════════════════════════════════════════════════════════════════
 function ToDoTab({C}){
-  const[lists,setLists]=useState([]);
-  const[openId,setOpenId]=useState(null);
-  const[showNew,setShowNew]=useState(false);
-  const[newName,setNewName]=useState("");
-  const[renameId,setRenameId]=useState(null);
+  const[items,setItems]=useState([]);
   const[newItem,setNewItem]=useState("");
   const[newNote,setNewNote]=useState("");
   const[editItem,setEditItem]=useState(null);
   const[editVal,setEditVal]=useState("");
   const[editNote,setEditNote]=useState("");
 
-  useEffect(()=>{loadData("lo_todo").then(d=>{if(d)setLists(d);});},[]);
   useEffect(()=>{
-    const sub=BackHandler.addEventListener("hardwareBackPress",()=>{if(openId){setOpenId(null);return true;}return false;});
-    return()=>sub.remove();
-  },[openId]);
-  const persist=useCallback(l=>{setLists(l);saveData("lo_todo",l);},[]);
+    loadData("lo_todo").then(d=>{
+      // Kompatibilitaet: altes Format war Array von Listen
+      if(d && Array.isArray(d) && d.length>0 && d[0].items){
+        // Alte Liste-von-Listen-Struktur umwandeln
+        const flat=[];
+        d.forEach(list=>list.items.forEach(i=>flat.push({id:i.id,text:i.text,note:i.note||"",done:i.done||false,priority:i.priority||false})));
+        setItems(flat);
+        saveData("lo_todo",flat);
+      } else if(d && Array.isArray(d)){
+        setItems(d);
+      }
+    });
+  },[]);
 
-  const createList=()=>{
-    if(!newName.trim())return;
-    if(renameId){persist(lists.map(l=>l.id===renameId?{...l,name:newName.trim()}:l));setRenameId(null);}
-    else{persist([...lists,{id:uid(),name:newName.trim(),items:[]}]);}
-    setNewName("");setShowNew(false);
-  };
-  const deleteList=id=>Alert.alert("Liste löschen?","Dauerhaft löschen?",[
-    {text:"Abbrechen",style:"cancel"},
-    {text:"Löschen",style:"destructive",onPress:()=>{persist(lists.filter(l=>l.id!==id));if(openId===id)setOpenId(null);}},
-  ]);
+  const persist=useCallback(its=>{setItems(its);saveData("lo_todo",its);},[]);
+  const tdDrag=useDrag(items,persist);
+
   const addItem=()=>{
-    if(!newItem.trim()||!openId)return;
-    persist(lists.map(l=>l.id===openId?{...l,items:[...l.items,{id:uid(),text:newItem.trim(),note:newNote.trim(),done:false,priority:false}]}:l));
+    if(!newItem.trim())return;
+    persist([...items,{id:uid(),text:newItem.trim(),note:newNote.trim(),done:false,priority:false}]);
     setNewItem("");setNewNote("");
   };
-  const toggleItem=id=>persist(lists.map(l=>l.id===openId?{...l,items:l.items.map(i=>i.id===id?{...i,done:!i.done}:i)}:l));
-  const togglePriority=id=>persist(lists.map(l=>l.id===openId?{...l,items:l.items.map(i=>i.id===id?{...i,priority:!i.priority}:i)}:l));
-  const deleteItem=id=>persist(lists.map(l=>l.id===openId?{...l,items:l.items.filter(i=>i.id!==id)}:l));
+  const toggleItem=id=>persist(items.map(i=>i.id===id?{...i,done:!i.done}:i));
+  const togglePriority=id=>persist(items.map(i=>i.id===id?{...i,priority:!i.priority}:i));
+  const deleteItem=id=>persist(items.filter(i=>i.id!==id));
   const saveEdit=()=>{
     if(!editVal.trim())return;
-    persist(lists.map(l=>l.id===openId?{...l,items:l.items.map(i=>i.id===editItem.id?{...i,text:editVal.trim(),note:editNote.trim()}:i)}:l));
-    setEditItem(null);setEditVal("");setEditNote("");
+    persist(items.map(i=>i.id===editItem.id?{...i,text:editVal.trim(),note:editNote.trim()}:i));
+    setEditItem(null);
   };
-  const resetAll=()=>persist(lists.map(l=>l.id===openId?{...l,items:l.items.map(i=>({...i,done:false}))}:l));
-  const current=lists.find(l=>l.id===openId);
-  const tdDrag=useDrag(current?[...current.items].sort((a,b)=>{if(a.done!==b.done)return a.done?1:-1;if(a.priority!==b.priority)return a.priority?-1:1;return 0;}):[], items=>persist(lists.map(l=>l.id===openId?{...l,items}:l)));
+  const resetAll=()=>Alert.alert("Alle zurücksetzen?","Alle Einträge als unerledigt markieren?",[
+    {text:"Abbrechen",style:"cancel"},
+    {text:"Zurücksetzen",onPress:()=>persist(items.map(i=>({...i,done:false})))}
+  ]);
 
-  if(openId&&current){
-    const done=current.items.filter(i=>i.done).length,total=current.items.length;
-    return(
-      <View style={{flex:1}}>
-        <View style={{flexDirection:"row",alignItems:"center",gap:10,marginBottom:14}}>
-          <TouchableOpacity onPress={()=>setOpenId(null)} style={{backgroundColor:C.bg4,padding:8,borderRadius:10}}>
-            <Text style={{color:C.text3,fontSize:20}}>‹</Text>
-          </TouchableOpacity>
-          <Text style={{color:C.text,fontSize:20,fontWeight:"800",flex:1}}>{current.name}</Text>
-          <TouchableOpacity onPress={()=>{setNewName(current.name);setRenameId(current.id);setShowNew(true);}} style={{backgroundColor:C.bg4,padding:8,borderRadius:10}}>
-            <Text style={{fontSize:16}}>✏️</Text>
-          </TouchableOpacity>
-        </View>
-
-        {total>0&&(
-          <View style={{backgroundColor:C.bg4,borderRadius:12,padding:8,marginBottom:10,flexDirection:"row",alignItems:"center",gap:10,borderWidth:1,borderColor:C.border}}>
-            <Text style={{color:C.text3,fontSize:12,fontWeight:"700"}}>{done}/{total} erledigt</Text>
-            <View style={{flex:1,backgroundColor:C.border,borderRadius:3,height:5,overflow:"hidden"}}>
-              <View style={{height:"100%",width:`${total>0?Math.round(done/total*100):0}%`,backgroundColor:C.accent}}/>
-            </View>
-            {done>0&&<Btn C={C} variant="ghost" small label="Reset" onPress={resetAll}/>}
-          </View>
-        )}
-
-        <View style={{marginBottom:10}}>
-          <View style={{flexDirection:"row",gap:8,marginBottom:5}}>
-            <Inp C={C} value={newItem} onChangeText={setNewItem} placeholder="Neue Aufgabe…" onSubmitEditing={addItem}/>
-            <Btn C={C} label="+" onPress={addItem} style={{paddingHorizontal:18,flex:0}}/>
-          </View>
-          <Inp C={C} value={newNote} onChangeText={setNewNote} placeholder="Notiz (optional)…" style={{fontSize:13}}/>
-        </View>
-
-        <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-          {current.items.length===0&&<EmptyState C={C} emoji="✅" text="Keine Aufgaben" sub="Füge deine erste Aufgabe hinzu"/>}
-          {(tdDrag.isDragActive?tdDrag.displayItems:current.items).map(item=>(
-            <View key={item.id} style={{flexDirection:"row",alignItems:"center",gap:7,paddingVertical:7,paddingHorizontal:10,
-              backgroundColor:tdDrag.isDragging(item.id)?C.accent+"22":item.done?C.bg4:C.card,borderRadius:12,marginBottom:5,
-              borderWidth:1.5,borderColor:tdDrag.isDragging(item.id)?C.accent:item.done?C.border2:item.priority?C.orange:C.border,
-              borderLeftWidth:3,borderLeftColor:tdDrag.isDragging(item.id)?C.accent:item.done?C.border2:item.priority?C.orange:C.accent,
-              elevation:tdDrag.isDragging(item.id)?4:item.done?0:1}}>
-              <View {...tdDrag.makeHandlers(item.id)} style={{paddingHorizontal:4,paddingVertical:8}}>
-                <Text style={{color:C.text4,fontSize:16,opacity:0.6}}>☰</Text>
-              </View>
-              {/* Checkbox */}
-              <TouchableOpacity onPress={()=>toggleItem(item.id)}
-                style={{width:22,height:22,borderRadius:6,borderWidth:2,
-                  borderColor:item.done?C.accent:C.border,
-                  backgroundColor:item.done?C.accent:"transparent",
-                  alignItems:"center",justifyContent:"center",flexShrink:0}}>
-                {item.done&&<Text style={{color:"#fff",fontSize:12,fontWeight:"700"}}>✓</Text>}
-              </TouchableOpacity>
-              {/* Text */}
-              <View style={{flex:1}}>
-                <Text style={{color:item.done?C.text4:C.text,fontSize:14,fontWeight:"500",
-                  textDecorationLine:item.done?"line-through":"none"}}>{item.text}</Text>
-                {item.note?<Text style={{color:C.text4,fontSize:11,marginTop:1}}>{item.note}</Text>:null}
-              </View>
-              {/* Priority star */}
-              <TouchableOpacity onPress={()=>togglePriority(item.id)} style={{padding:3}}>
-                <Text style={{fontSize:16,opacity:item.priority?1:0.3}}>⭐</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={()=>{setEditItem(item);setEditVal(item.text);setEditNote(item.note||"");}} style={{padding:3,opacity:0.6}}>
-                <Text style={{fontSize:15}}>✏️</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={()=>deleteItem(item.id)} style={{padding:3,opacity:0.6}}>
-                <Text style={{fontSize:15}}>🗑</Text>
-              </TouchableOpacity>
-            </View>
-          ))}
-        </ScrollView>
-
-        <AppModal C={C} visible={!!editItem} title="Aufgabe bearbeiten" onClose={()=>setEditItem(null)}>
-          <FLabel C={C} text="Aufgabe"/>
-          <Inp C={C} value={editVal} onChangeText={setEditVal} onSubmitEditing={saveEdit} style={{flex:0,marginBottom:12}}/>
-          <FLabel C={C} text="Notiz"/>
-          <Inp C={C} value={editNote} onChangeText={setEditNote} placeholder="Optional…" style={{flex:0}}/>
-          <View style={{flexDirection:"row",gap:8,marginTop:14}}>
-            <Btn C={C} label="Speichern" onPress={saveEdit}/>
-            <Btn C={C} variant="ghost" label="Abbrechen" onPress={()=>setEditItem(null)}/>
-          </View>
-        </AppModal>
-        <FullModal C={C} visible={showNew} title={renameId?"Umbenennen":"Neue To-Do-Liste"} onClose={()=>{setShowNew(false);setNewName("");setRenameId(null);}}>
-          <FLabel C={C} text="Listenname"/>
-          <Inp C={C} value={newName} onChangeText={setNewName} placeholder="z.B. Urlaub planen, Reparaturen…" onSubmitEditing={createList} style={{flex:0}}/>
-          <View style={{flexDirection:"row",gap:8,marginTop:14}}>
-            <Btn C={C} label={renameId?"Speichern":"Erstellen"} onPress={createList}/>
-            <Btn C={C} variant="ghost" label="Abbrechen" onPress={()=>{setShowNew(false);setNewName("");setRenameId(null);}}/>
-          </View>
-        </FullModal>
-      </View>
-    );
-  }
+  const done=items.filter(i=>i.done).length;
+  const total=items.length;
+  // Sortierung: offene Priorität zuerst, dann offen, dann erledigt
+  const sorted=(tdDrag.isDragActive?tdDrag.displayItems:[...items].sort((a,b)=>{
+    if(a.done!==b.done)return a.done?1:-1;
+    if(a.priority!==b.priority)return a.priority?-1:1;
+    return 0;
+  }));
 
   return(
     <View style={{flex:1}}>
-      <SectionHeader C={C} title="To-Do Listen" addLabel="+ Neue Liste" onAdd={()=>{setRenameId(null);setNewName("");setShowNew(true);}}/>
-      <ScrollView showsVerticalScrollIndicator={false}>
-        {lists.length===0&&<EmptyState C={C} emoji="✅" text="Noch keine To-Do Listen" sub='z.B. „Urlaub planen"'/>}
-        <View style={{flexDirection:"row",flexWrap:"wrap",marginHorizontal:-5}}>
-          {lists.map(list=>{
-            const done=list.items.filter(i=>i.done).length,total=list.items.length;
-            const prio=list.items.filter(i=>i.priority&&!i.done).length;
-            return(
-              <Card key={list.id} C={C}
-                title={list.name}
-                sub={`${total} Aufgaben · ${done} erledigt${prio>0?" · ⭐ "+prio:""}`}
-                progress={total?Math.round(done/total*100):null}
-                accentColor="#9b6fc4"
-                onPress={()=>setOpenId(list.id)}
-                onDelete={()=>deleteList(list.id)}/>
-            );
-          })}
+      <View style={{flexDirection:"row",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+        <Text style={{color:C.text,fontSize:20,fontWeight:"800"}}>To-Do</Text>
+        {done>0&&<Btn C={C} variant="ghost" small label="Reset" onPress={resetAll}/>}
+      </View>
+
+      {total>0&&(
+        <View style={{backgroundColor:C.bg4,borderRadius:12,padding:8,marginBottom:12,
+          flexDirection:"row",alignItems:"center",gap:10,borderWidth:1,borderColor:C.border}}>
+          <Text style={{color:C.text3,fontSize:12,fontWeight:"700"}}>{done}/{total} erledigt</Text>
+          <View style={{flex:1,backgroundColor:C.border,borderRadius:3,height:5,overflow:"hidden"}}>
+            <View style={{height:"100%",width:`${total>0?Math.round(done/total*100):0}%`,backgroundColor:C.accent}}/>
+          </View>
         </View>
+      )}
+
+      <View style={{marginBottom:10}}>
+        <View style={{flexDirection:"row",gap:8,marginBottom:5}}>
+          <Inp C={C} value={newItem} onChangeText={setNewItem} placeholder="Neue Aufgabe…" onSubmitEditing={addItem}/>
+          <Btn C={C} label="+" onPress={addItem} style={{paddingHorizontal:18,flex:0}}/>
+        </View>
+        <Inp C={C} value={newNote} onChangeText={setNewNote} placeholder="Notiz (optional)…" style={{fontSize:13}}/>
+      </View>
+
+      <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        {items.length===0&&<EmptyState C={C} emoji="✅" text="Noch keine Aufgaben" sub="Füge deine erste Aufgabe hinzu"/>}
+        {sorted.map(item=>(
+          <View key={item.id} style={{flexDirection:"row",alignItems:"center",gap:7,
+            paddingVertical:7,paddingHorizontal:10,
+            backgroundColor:tdDrag.isDragging(item.id)?C.accent+"22":item.done?C.bg4:C.card,
+            borderRadius:12,marginBottom:5,
+            borderWidth:1.5,borderColor:tdDrag.isDragging(item.id)?C.accent:item.done?C.border2:item.priority?C.orange:C.border,
+            borderLeftWidth:3,borderLeftColor:tdDrag.isDragging(item.id)?C.accent:item.done?C.border2:item.priority?C.orange:C.accent,
+            elevation:tdDrag.isDragging(item.id)?4:item.done?0:1}}>
+            <View {...tdDrag.makeHandlers(item.id)} style={{paddingHorizontal:4,paddingVertical:8}}>
+              <Text style={{color:C.text4,fontSize:16,opacity:0.6}}>☰</Text>
+            </View>
+            <TouchableOpacity onPress={()=>toggleItem(item.id)}
+              style={{width:22,height:22,borderRadius:6,borderWidth:2,
+                borderColor:item.done?C.accent:C.border,
+                backgroundColor:item.done?C.accent:"transparent",
+                alignItems:"center",justifyContent:"center",flexShrink:0}}>
+              {item.done&&<Text style={{color:"#fff",fontSize:12,fontWeight:"700"}}>✓</Text>}
+            </TouchableOpacity>
+            <View style={{flex:1}}>
+              <Text style={{color:item.done?C.text4:C.text,fontSize:14,fontWeight:"500",
+                textDecorationLine:item.done?"line-through":"none"}}>{item.text}</Text>
+              {item.note?<Text style={{color:C.text4,fontSize:11,marginTop:1}}>{item.note}</Text>:null}
+            </View>
+            <TouchableOpacity onPress={()=>togglePriority(item.id)} style={{padding:3}}>
+              <Text style={{fontSize:16,opacity:item.priority?1:0.3}}>⭐</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={()=>{setEditItem(item);setEditVal(item.text);setEditNote(item.note||"");}} style={{padding:3,opacity:0.6}}>
+              <Text style={{fontSize:15}}>✏️</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={()=>deleteItem(item.id)} style={{padding:3,opacity:0.6}}>
+              <Text style={{fontSize:15}}>🗑</Text>
+            </TouchableOpacity>
+          </View>
+        ))}
       </ScrollView>
-      <FullModal C={C} visible={showNew} title="Neue To-Do-Liste" onClose={()=>{setShowNew(false);setNewName("");}}>
-        <FLabel C={C} text="Listenname"/>
-        <Inp C={C} value={newName} onChangeText={setNewName} placeholder="z.B. Urlaub planen, Reparaturen…" onSubmitEditing={createList} style={{flex:0}}/>
+
+      <AppModal C={C} visible={!!editItem} title="Aufgabe bearbeiten" onClose={()=>setEditItem(null)}>
+        <FLabel C={C} text="Aufgabe"/>
+        <Inp C={C} value={editVal} onChangeText={setEditVal} onSubmitEditing={saveEdit} style={{flex:0,marginBottom:12}}/>
+        <FLabel C={C} text="Notiz"/>
+        <Inp C={C} value={editNote} onChangeText={setEditNote} placeholder="Optional…" style={{flex:0}}/>
         <View style={{flexDirection:"row",gap:8,marginTop:14}}>
-          <Btn C={C} label="Erstellen" onPress={createList}/>
-          <Btn C={C} variant="ghost" label="Abbrechen" onPress={()=>{setShowNew(false);setNewName("");}}/>        </View>
-      </FullModal>
+          <Btn C={C} label="Speichern" onPress={saveEdit}/>
+          <Btn C={C} variant="ghost" label="Abbrechen" onPress={()=>setEditItem(null)}/>
+        </View>
+      </AppModal>
     </View>
   );
 }
