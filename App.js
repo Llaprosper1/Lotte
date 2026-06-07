@@ -304,7 +304,7 @@ function TimePicker({C, value, onChange}) {
 
 const REPEAT_OPTIONS=[["none","Keine Wiederholung"],["1","Jährlich"],["2","Alle 2 Jahre"]];
 
-const EMPTY_FORM={title:"",date:"",time:"",note:"",reminderType:"7",customReminder:"",reminderTime:"",repeat:"none"};
+const EMPTY_FORM={title:"",date:"",time:"",note:"",reminderType:"1",customReminder:"",reminderTime:"",repeat:"none"};
 function RemindersTab({C}){
   const[reminders,setReminders]=useState([]);
   const[loaded,setLoaded]=useState(false);
