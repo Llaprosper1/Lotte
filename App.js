@@ -9,7 +9,6 @@ import * as Notifications from "expo-notifications";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import * as DocumentPicker from "expo-document-picker";
-import * as Updates from "expo-updates";
 
 // Navigationsleisten-Höhe für Android
 const _sh = Dimensions.get("screen").height;
@@ -847,11 +846,8 @@ function SettingsTab({C}) {
       setLoading(false);
       Alert.alert(
         "✅ Backup wiederhergestellt",
-        count + " Datensätze importiert.\n\nDie App startet jetzt neu um die Daten zu laden.",
-        [{text:"OK", onPress: async () => {
-          try { await Updates.reloadAsync(); }
-          catch(e) { BackHandler.exitApp(); }
-        }}]
+        count + " Datensätze importiert.\n\nBitte App jetzt schließen und neu öffnen.",
+        [{text:"App schließen", onPress:()=>BackHandler.exitApp()}]
       );
     } catch(e) {
       setStatus({ok:false, msg:"Fehler: " + e.message});
