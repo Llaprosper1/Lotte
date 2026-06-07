@@ -617,7 +617,6 @@ function ShoppingTab({C}){const[lists,setLists]=useState([]);const[master,setMas
 function ToDoTab({C}){
   const[items,setItems]=useState([]);
   const[newItem,setNewItem]=useState("");
-  const[newNote,setNewNote]=useState("");
   const[editItem,setEditItem]=useState(null);
   const[editVal,setEditVal]=useState("");
   const[editNote,setEditNote]=useState("");
@@ -637,8 +636,8 @@ function ToDoTab({C}){
 
   const addItem=()=>{
     if(!newItem.trim())return;
-    persist([...items,{id:uid(),text:newItem.trim(),note:newNote.trim(),done:false,priority:false}]);
-    setNewItem("");setNewNote("");
+    persist([...items,{id:uid(),text:newItem.trim(),note:"",done:false,priority:false}]);
+    setNewItem("");
   };
   const toggleItem=id=>persist(items.map(i=>i.id===id?{...i,done:!i.done}:i));
   const togglePriority=id=>persist(items.map(i=>i.id===id?{...i,priority:!i.priority}:i));
@@ -667,13 +666,10 @@ function ToDoTab({C}){
         {done>0&&<Btn C={C} variant="ghost" small label="Reset" onPress={resetAll}/>}
       </View>
 
-      <View style={{marginBottom:10}}>
-        <View style={{flexDirection:"row",gap:8,marginBottom:5}}>
+      <View style={{flexDirection:"row",gap:8,marginBottom:14}}>
           <Inp C={C} value={newItem} onChangeText={setNewItem} placeholder="Neue Aufgabe..." onSubmitEditing={addItem}/>
           <Btn C={C} label="+" onPress={addItem} style={{paddingHorizontal:18,flex:0}}/>
         </View>
-        <Inp C={C} value={newNote} onChangeText={setNewNote} placeholder="Notiz (optional)..." style={{fontSize:13}}/>
-      </View>
 
       <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         {items.length===0&&<EmptyState C={C} emoji="checkmark.circle" text="Noch keine Aufgaben" sub="Fuege deine erste Aufgabe hinzu"/>}
@@ -713,7 +709,7 @@ function ToDoTab({C}){
         ))}
       </ScrollView>
 
-      <AppModal C={C} visible={!!editItem} title="Aufgabe bearbeiten" onClose={()=>setEditItem(null)}>
+      <FullModal C={C} visible={!!editItem} title="Aufgabe bearbeiten" onClose={()=>setEditItem(null)}>
         <FLabel C={C} text="Aufgabe"/>
         <Inp C={C} value={editVal} onChangeText={setEditVal} onSubmitEditing={saveEdit} style={{flex:0,marginBottom:12}}/>
         <FLabel C={C} text="Notiz"/>
@@ -722,11 +718,10 @@ function ToDoTab({C}){
           <Btn C={C} label="Speichern" onPress={saveEdit}/>
           <Btn C={C} variant="ghost" label="Abbrechen" onPress={()=>setEditItem(null)}/>
         </View>
-      </AppModal>
+      </FullModal>
     </View>
   );
 }
-
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TAB: EINSTELLUNGEN & BACKUP
