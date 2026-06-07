@@ -673,17 +673,6 @@ function ToDoTab({C}){
       <View style={{flexDirection:"row",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
         <Text style={{color:C.text,fontSize:20,fontWeight:"800"}}>To-Do</Text>
         {done>0&&<Btn C={C} variant="ghost" small label="Reset" onPress={resetAll}/>}
-      </View>
-
-      {total>0&&(
-        <View style={{backgroundColor:C.bg4,borderRadius:12,padding:8,marginBottom:12,
-          flexDirection:"row",alignItems:"center",gap:10,borderWidth:1,borderColor:C.border}}>
-          <Text style={{color:C.text3,fontSize:12,fontWeight:"700"}}>{done}/{total} erledigt</Text>
-          <View style={{flex:1,backgroundColor:C.border,borderRadius:3,height:5,overflow:"hidden"}}>
-            <View style={{height:"100%",width:`${total>0?Math.round(done/total*100):0}%`,backgroundColor:C.accent}}/>
-          </View>
-        </View>
-      )}
 
       <View style={{marginBottom:10}}>
         <View style={{flexDirection:"row",gap:8,marginBottom:5}}>
@@ -771,6 +760,8 @@ function SettingsTab({C}) {
       result["_backup_date"] = new Date().toLocaleDateString("de-DE", {
         day:"2-digit", month:"2-digit", year:"numeric", hour:"2-digit", minute:"2-digit"
       });
+      result["_app_version"] = "1.2"; // ToDo: flat format
+      result["_todo_format"] = "flat"; // flat = direkte Items, list = Listen-in-Listen
       const json = JSON.stringify(result, null, 2);
       const date = new Date().toISOString().slice(0,10);
       const fileName = "lottes_backup_" + date + ".json";
@@ -798,8 +789,18 @@ function SettingsTab({C}) {
       const data = JSON.parse(json);
       let count = 0;
       for (const [k, v] of Object.entries(data)) {
-        if (k === "_backup_date" || v === null) continue;
-        await AsyncStorage.setItem(k, JSON.stringify(v));
+        if (k.startsWith("_") || v === null) continue;
+        // lo_todo: altes Format (Listen) → flach konvertieren beim Import
+        if (k === "lo_todo" && Array.isArray(v) && v.length > 0 && v[0].items) {
+          const flat = [];
+          v.forEach(list => list.items.forEach(i => flat.push({
+            id: i.id||uid(), text: i.text||"", note: i.note||"",
+            done: i.done||false, priority: i.priority||false
+          })));
+          await AsyncStorage.setItem(k, JSON.stringify(flat));
+        } else {
+          await AsyncStorage.setItem(k, JSON.stringify(v));
+        }
         count++;
       }
       setLoading(false);
