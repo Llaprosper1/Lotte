@@ -10,8 +10,7 @@
           "color": "#4caf50",
           "sounds": []
         }
-      ],
-      "expo-sharing"
+      ]
     ],
     "version": "1.0.0",
     "orientation": "portrait",
@@ -22,10 +21,8 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#1a1a2e"
       },
       "package": "com.llaprosper.LottesOrganizer",
       "permissions": [
@@ -39,7 +36,7 @@
     },
     "extra": {
       "eas": {
-        "projectId": "4414e60b-8633-459f-bf60-b82f77a78d76"
+        "projectId": "431d268e-6c1a-44dd-8773-cc6ae3676df4"
       }
     }
   }
